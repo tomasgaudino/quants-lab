@@ -187,7 +187,8 @@ class XtreetBBController(DirectionalTradingControllerBase):
         """
         closed_executors = self.filter_executors(
             executors=self.executors_info,
-            filter_func=lambda x: not x.is_active)
+            filter_func=lambda x: not x.is_active)  # TODO: order by close_timestamp
+        closed_executors = sorted(closed_executors, key=lambda x: x.close_timestamp, reverse=True)
         if len(closed_executors) > 0:
             last_closed_executor = closed_executors[-1]
             last_executor_side = 1 if last_closed_executor.side == TradeType.BUY else -1
