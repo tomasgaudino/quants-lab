@@ -189,7 +189,8 @@ def generate_config(connector_name: str, intervals: List[str], screener_top_mark
                     max_executors_per_side: int, cooldown_time: int, leverage: int,
                     time_limit: int,
                     bb_lengths: List[int], bb_stds: List[float], min_distance_between_orders: float,
-                    max_ts_sl_ratio: float, sl_std_multiplier: float, ts_delta_multiplier: float) -> List[dict]:
+                    max_ts_sl_ratio: float, sl_std_multiplier: float, ts_delta_multiplier: float,
+                    max_dca_amount_ratio: float) -> List[dict]:
     # Distribute the total amount based on the score
     configs = []
     for bb_length in bb_lengths:
@@ -213,17 +214,22 @@ def generate_config(connector_name: str, intervals: List[str], screener_top_mark
                             s0, s1 = dca_spreads[0], dca_spreads[1]
                             for reversions in all_reversions:
                                 r1, r2 = reversions[0], reversions[1]
+                                if r2 - r1 <= 0:
+                                    continue
                                 trailing_stop_activation = r1
                                 trailing_stop_delta = trailing_stop_activation * ts_delta_multiplier
+                                a_0 = 1
                                 a_1 = (s1 - s0) / (r2 - r1) - 1
                                 sl_condition = stop_loss <= 0
                                 ts_condition = trailing_stop_activation <= 0
                                 a_1_condition = a_1 <= 1
                                 min_distance_condition = s1 - s0 < min_distance_between_orders
-                                tp_sl_ratio_condition = trailing_stop_activation / stop_loss <= max_ts_sl_ratio
+                                tp_sl_ratio_condition = trailing_stop_activation / stop_loss >= max_ts_sl_ratio
+                                max_dca_amount_ratio_condition = max_dca_amount_ratio < (a_1 / a_0)
 
-                                if sl_condition or ts_condition or a_1_condition \
-                                        or min_distance_condition or tp_sl_ratio_condition:
+                                if (sl_condition or ts_condition or a_1_condition
+                                        or min_distance_condition or tp_sl_ratio_condition
+                                        or max_dca_amount_ratio_condition):
                                     continue
                                 dca_amounts = [1, a_1]
                                 bep = ((1 * 1 + a_1 * (s1 + 1)) / (1 + a_1)) - 1
