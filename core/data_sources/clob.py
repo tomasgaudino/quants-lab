@@ -6,6 +6,7 @@ from typing import Dict, Tuple
 import pandas as pd
 
 from core.data_sources.trades_feed.connectors.binance_perpetual import BinancePerpetualTradesFeed
+from core.data_sources.trades_feed.connectors.okx_perpetual import OkxPerpetualTradesFeed
 from core.data_structures.candles import Candles
 from core.data_structures.trading_rules import TradingRules
 from hummingbot.client.config.client_config_map import ClientConfigMap
@@ -44,7 +45,8 @@ class CLOBDataSource:
     def __init__(self):
         logger.info("Initializing ClobDataSource")
         self.candles_factory = CandlesFactory()
-        self.trades_feeds = {"binance_perpetual": BinancePerpetualTradesFeed()}
+        self.trades_feeds = {"binance_perpetual": BinancePerpetualTradesFeed(),
+                             "okx_perpetual": OkxPerpetualTradesFeed()}
         self.conn_settings = AllConnectorSettings.get_connector_settings()
         self.connectors = {name: self.get_connector(name) for name, settings in self.conn_settings.items()
                            if settings.type in self.CONNECTOR_TYPES and name not in self.EXCLUDED_CONNECTORS and

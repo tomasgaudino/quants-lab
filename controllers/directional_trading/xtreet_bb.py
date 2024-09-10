@@ -187,7 +187,7 @@ class XtreetBBController(DirectionalTradingControllerBase):
         """
         closed_executors = self.filter_executors(
             executors=self.executors_info,
-            filter_func=lambda x: not x.is_active)  # TODO: order by close_timestamp
+            filter_func=lambda x: not x.is_active)
         closed_executors = sorted(closed_executors, key=lambda x: x.close_timestamp, reverse=True)
         if len(closed_executors) > 0:
             last_closed_executor = closed_executors[-1]
