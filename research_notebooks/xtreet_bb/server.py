@@ -122,7 +122,7 @@ async def main():
     screner_report["url"] = screner_report["trading_pair"].apply(lambda x: f"https://www.okx.com/trade-swap/{x}-swap")
     screner_report.sort_values("mean_natr", ascending=False, inplace=True)
 
-    screner_report.to_csv(f"screener_report_{pd.to_datetime(time.time()).strftime('%Y-%m-%d %H:%M:%S')}.csv", index=False)
+    screner_report.to_csv(f"screener_report_{pd.to_datetime(time.time(), unit='s').strftime('%Y-%m-%d %H:%M:%S')}.csv", index=False)
 
     # Calculate the 20th percentile (0.2 quantile) for both columns
     natr_percentile = screner_report['mean_natr'].quantile(VOLATILITY_THRESHOLD)
