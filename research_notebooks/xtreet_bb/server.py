@@ -65,7 +65,7 @@ MIN_DISTANCE_BETWEEN_ORDERS = 0.01
 MAX_TS_SL_RATIO = 0.5
 
 # Backtesting variables
-EXPERIMENT_NAME = pd.to_datetime(time.time()).strftime('%Y-%m-%d %H:%M:%S')
+EXPERIMENT_NAME = pd.to_datetime(time.time(), unit="s").strftime('%Y-%m-%d %H:%M:%S')
 TRADE_COST = 0.0007
 BACKTESTING_RESOLUTION = "1m"
 
@@ -199,7 +199,8 @@ async def main():
             except Exception as e:
                 print(f"Error with {config_file}: {e}")
                 # raise
-        with open(f"bt_results_{EXPERIMENT_NAME}.pkl", "wb") as f:
+        bt_path = os.path.join(root_path, "research_notebooks", "xtreet_bb", "bt_results", f"bt_results_{EXPERIMENT_NAME}.pkl")
+        with open(bt_path, "wb") as f:
             pickle.dump(bt_results, f)
 
 
