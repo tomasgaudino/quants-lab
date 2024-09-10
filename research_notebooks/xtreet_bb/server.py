@@ -121,6 +121,7 @@ async def main():
         volume_config=VolumeConfig(short_window=VOLUME_FAST_WINDOW, long_window=VOLUME_FAST_WINDOW))
     screner_report["url"] = screner_report["trading_pair"].apply(lambda x: f"https://www.okx.com/trade-swap/{x}-swap")
     screner_report.sort_values("mean_natr", ascending=False, inplace=True)
+
     screner_report.to_csv(f"screener_report_{pd.to_datetime(time.time()).strftime('%Y-%m-%d %H:%M:%S')}.csv", index=False)
 
     # Calculate the 20th percentile (0.2 quantile) for both columns
@@ -154,10 +155,9 @@ async def main():
         max_dca_amount_ratio=MAX_DCA_AMOUNT_RATIO
     )
 
-    print(f"Total Trading Pairs: {len(set([config['trading_pair'] for config in strategy_configs]))}")
-    print(f"Total Configs: {len(strategy_configs)}")
-
     if DUMP_CONFIGS:
+        print(f"Total Trading Pairs: {len(set([config['trading_pair'] for config in strategy_configs]))}")
+        print(f"Total Configs: {len(strategy_configs)}")
         for config in strategy_configs:
             dump_dict_to_yaml("configs/", config)
 
