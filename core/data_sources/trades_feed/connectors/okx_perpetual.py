@@ -49,16 +49,16 @@ class OkxPerpetualTradesFeed(TradesFeedBase):
             params = {
                 "instId": ex_trading_pair,
                 "limit": 100,
-                "type": 2 if from_id else 1,
-                "from": from_id if from_id else start_ts,
+                "type": 1 if from_id is not None else 2,
+                "after": from_id if from_id is not None else end_ts,
             }
 
             trades_data = await self._get_historical_trades_request(params)
             trades = trades_data["data"]
             if trades:
-                last_timestamp = int(trades[-1]["ts"])
+                first_timestamp = int(trades[-1]["ts"])
                 all_trades.extend(trades)
-                all_trades_collected = last_timestamp >= end_ts
+                all_trades_collected = first_timestamp <= start_ts
                 from_id = trades[-1]["tradeId"]
             else:
                 all_trades_collected = True
