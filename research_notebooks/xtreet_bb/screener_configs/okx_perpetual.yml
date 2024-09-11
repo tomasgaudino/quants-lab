@@ -1,0 +1,37 @@
+screener_params:
+  download_candles: false
+  batch_candles_request: 3
+  connector_name: "okx_perpetual"
+  intervals:
+    - "1m"
+  days_to_download: 7
+  sleep_request: 2.0
+  from_trades: false
+  volume_threshold: 0.5
+  volatility_threshold: 0.5
+  max_top_markets: 999
+
+trading_rules_filter:
+  quote_asset: "USDT"
+  min_notional_size: 10  # In USDT
+  max_price_step: 0.001  # Min price step in % (tick size)
+  volatility_window: 120  # In bars
+  volume_fast_window: 20
+  volume_slow_window: 100
+
+config_generation:
+  total_amount: 500
+  activation_bounds: 0.002
+  max_executors_per_side: 1
+  cooldown_time: 0
+  leverage: 20
+  time_limit: 86400  # 60 * 60 * 24
+  bollinger_lengths: [50, 100, 200]
+  bollinger_stds: [1.0, 1.4, 1.8, 2.0, 3.0]
+  sl_std_multiplier: 1
+  ts_delta_multiplier: 0.2
+  max_dca_amount_ratio: 5  # Amount 2 / Amount 1
+
+config_filtering:
+  min_distance_between_orders: 0.01
+  max_ts_sl_ratio: 0.5

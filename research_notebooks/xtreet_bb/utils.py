@@ -1,9 +1,12 @@
 from typing import List
 
 import pandas as pd
+import asyncio
 import pandas_ta as ta  # noqa: F401
 import yaml
+import os
 
+from core.data_sources import CLOBDataSource
 from core.data_structures.candles import Candles
 from core.data_structures.trading_rules import TradingRules
 from core.features.candles.volatility import Volatility
@@ -291,3 +294,42 @@ def read_yaml_to_dict(file_path: str):
     with open(file_path, 'r') as file:
         data = yaml.safe_load(file)
     return data
+
+
+async def fetch_candles(download_candles: bool, trading_pairs: List[str], batch_candles_request: int,
+                        clob: CLOBDataSource, connector_name: str, root_path: str, intervals: List[str],
+                        days_to_download: int = 1, sleep_request: int = 10, from_trades: bool = False):
+    if download_candles:
+        number_of_calls = (len(trading_pairs) // batch_candles_request) + 1
+
+        all_candles = {}
+
+        for i in range(number_of_calls):
+            try:
+                print(f"Batch {i + 1}/{number_of_calls}")
+                start = i * batch_candles_request
+                end = (i + 1) * batch_candles_request
+                print(f"Start: {start}, End: {end}")
+                end = min(end, len(trading_pairs))
+                trading_pairs_batch = trading_pairs[start:end]
+
+                tasks = [clob.get_candles_last_days(connector_name=connector_name,
+                                                    trading_pair=trading_pair,
+                                                    interval=interval,
+                                                    days=days_to_download,
+                                                    from_trades=from_trades)
+                         for trading_pair in trading_pairs_batch for interval in intervals]
+
+                candles = await asyncio.gather(*tasks)
+                candles = {trading_pair: candle for trading_pair, candle in zip(trading_pairs, candles)}
+                all_candles.update(candles)
+                if i != number_of_calls - 1:
+                    print(f"Sleeping for {sleep_request} seconds")
+                    await asyncio.sleep(sleep_request)
+            except Exception as e:
+                print(f"Error in batch {i + 1}: {e}")
+                continue
+        clob.dump_candles_cache(os.path.join(root_path, "data"))
+    else:
+        clob.load_candles_cache(os.path.join(root_path, "data"))
+    return [value for key, value in clob.candles_cache.items() if key[2] in intervals and key[0] == connector_name]
