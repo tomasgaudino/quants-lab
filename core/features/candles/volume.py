@@ -23,6 +23,7 @@ class Volume(FeatureBase[VolumeConfig]):
         candles["sell_taker_volume_usd"] = candles["volume_usd"] - candles["buy_taker_volume_usd"]
 
         # Calculate buy/sell imbalance
+        # TODO: This metrics are overfitted to binance, since not all candles have buy/sell taker data
         candles["buy_sell_imbalance"] = candles["buy_taker_volume_usd"] - candles["sell_taker_volume_usd"]
 
         # Calculate rolling metrics for short and long windows
