@@ -99,8 +99,10 @@ class CLOBDataSource:
             if from_trades:
                 trades = await self.get_trades(connector_name, trading_pair, new_start_time, new_end_time)
                 pandas_interval = self.convert_interval_to_pandas_freq(interval)
-                candles_df = trades.resample(pandas_interval).agg({"price": "ohlc", "volume": "sum"}).ffill()
+                candles_df = trades.resample(pandas_interval).agg(
+                    {"price": "ohlc", "volume": "sum", 'id': 'first'}).ffill()
                 candles_df.columns = candles_df.columns.droplevel(0)
+                candles_df.rename(columns={'id': 'first_trade_id'}, inplace=True)
                 candles_df["timestamp"] = pd.to_numeric(candles_df.index) // 1e9
             else:
                 candle = self.candles_factory.get_candle(CandlesConfig(

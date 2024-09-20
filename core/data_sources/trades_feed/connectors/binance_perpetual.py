@@ -67,7 +67,10 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
 
         df = pd.DataFrame(all_trades)
         df.rename(columns={"T": "timestamp", "p": "price", "q": "volume", "m": "sell_taker", "a": "id"}, inplace=True)
-        df.drop(columns=["f", "l"], inplace=True)
+        try:
+            df.drop(columns=["f", "l"], inplace=True)
+        except:
+            pass
         df["timestamp"] = df["timestamp"] / 1000
         df.index = pd.to_datetime(df["timestamp"], unit="s")
         df["price"] = df["price"].astype(float)
