@@ -30,7 +30,8 @@ async def main():
         i += 1
         logging.info(f"Fetching trades for {trading_pair} [{i} from {len(trading_pairs)}]")
         try:
-            base = pd.read_csv(f"data/candles/binance_perpetual|{trading_pair}|1s.csv")
+            input_path = os.path.join(root_path, "data/candles", f"binance_perpetual|{trading_pair}|1s.csv")
+            base = pd.read_csv(input_path)
             first_trade_id = base['first_trade_id'].max()
             base = base[base['first_trade_id'] < first_trade_id]
             trades = await trades_feed._get_historical_trades(trading_pair, end_time=time.time(), start_time=None, from_id=first_trade_id)
