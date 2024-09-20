@@ -90,7 +90,7 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
             if e.status == 418:
                 sys.exit()
             if e.status == 429:
-                await asyncio.sleep(ONE_MINUTE)  # Sleep to respect rate limits
+                await asyncio.sleep(60)  # Sleep to respect rate limits
             raise e
         except Exception as e:
             self.logger().error(f"Error fetching historical trades for {params}: {e}")
