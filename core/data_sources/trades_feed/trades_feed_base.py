@@ -20,5 +20,5 @@ class TradesFeedBase(ABC):
         return historical_trades
 
     @abstractmethod
-    async def _get_historical_trades(self, trading_pair: str, start_time: int, end_time: int):
+    async def _get_historical_trades(self, trading_pair: str, start_time: int, end_time: int, from_id: int):
         ...

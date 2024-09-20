@@ -16,52 +16,10 @@ from core.data_sources import CLOBDataSource
 from core.data_sources.trades_feed.connectors.binance_perpetual import BinancePerpetualTradesFeed
 
 
-class BinancePerpetualTradesFeedFallismo(BinancePerpetualTradesFeed):
-    async def _get_historical_trades(self, trading_pair: str, start_time=None, end_time=None, from_id=None):
-        end_ts = time.time()
-        all_trades_collected = False
-        all_trades = []
-        ex_trading_pair = self.get_exchange_trading_pair(trading_pair)
-        if from_id:
-            while not all_trades_collected:
-                await self._enforce_rate_limit()  # Enforce rate limit before making a request
-
-                params = {
-                    "symbol": ex_trading_pair,
-                    "limit": 1000,
-                    "fromId": int(from_id)
-                }
-
-                trades = await self._get_historical_trades_request(params)
-
-                if trades:
-                    last_timestamp = trades[-1]["T"] / 1e3
-                    print(f"Fetching trades from {pd.to_datetime(last_timestamp, unit='s')}")
-                    all_trades.extend(trades)
-                    all_trades_collected = last_timestamp >= end_ts
-                    from_id = trades[-1]["a"]
-                else:
-                    all_trades_collected = True
-
-            df = pd.DataFrame(all_trades)
-            df.rename(columns={"T": "timestamp", "p": "price", "q": "volume", "m": "sell_taker", "a": "id"},
-                      inplace=True)
-            try:
-                df.drop(columns=["f", "l"], inplace=True)
-            except:
-                pass
-            df["timestamp"] = df["timestamp"] / 1000
-            df.index = pd.to_datetime(df["timestamp"], unit="s")
-            df["price"] = df["price"].astype(float)
-            df["volume"] = df["volume"].astype(float)
-            return df
-
-
 async def main():
     logging.info(f"Starting trades downloader at {time.strftime('%Y-%m-%d %H:%M:%S')}")
     clob = CLOBDataSource()
-    fallismo = BinancePerpetualTradesFeedFallismo()
-
+    trades_feed = BinancePerpetualTradesFeed()
     trading_rules = await clob.get_trading_rules("binance_perpetual")
     trading_pairs = trading_rules.filter_by_quote_asset("USDT") \
         .filter_by_min_notional_size(Decimal(str(10))) \
@@ -70,12 +28,12 @@ async def main():
     i = 0
     for trading_pair in trading_pairs:
         i += 1
-        print(f"Fetching trades for {trading_pair} [{i} from {len(trading_pairs)}]")
+        logging.info(f"Fetching trades for {trading_pair} [{i} from {len(trading_pairs)}]")
         try:
             base = pd.read_csv(f"data/candles/binance_perpetual|{trading_pair}|1s.csv")
             first_trade_id = base['first_trade_id'].max()
             base = base[base['first_trade_id'] < first_trade_id]
-            trades = await fallismo._get_historical_trades(trading_pair, from_id=first_trade_id)
+            trades = await trades_feed._get_historical_trades(trading_pair, end_time=time.time(), start_time=None, from_id=first_trade_id)
             pandas_interval = clob.convert_interval_to_pandas_freq("1s")
             candles_df = trades.resample(pandas_interval).agg(
                 {"price": "ohlc", "volume": "sum", 'id': 'first'}).ffill()

@@ -1,12 +1,14 @@
 import asyncio
 import logging
 from time import time
+import sys
 from typing import Dict
 
 import aiohttp
 import pandas as pd
 
 from core.data_sources.trades_feed.trades_feed_base import TradesFeedBase
+from hummingbot.connector.derivative.hashkey_perpetual.hashkey_perpetual_constants import ONE_MINUTE
 
 
 class BinancePerpetualTradesFeed(TradesFeedBase):
@@ -35,11 +37,10 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
         base, quote = trading_pair.split("-")
         return f"{base}{quote}"
 
-    async def _get_historical_trades(self, trading_pair: str, start_time: int, end_time: int):
+    async def _get_historical_trades(self, trading_pair: str, start_time: int, end_time: int, from_id: int = None):
         all_trades_collected = False
         end_ts = int(end_time * 1000)
         start_ts = int(start_time * 1000)
-        from_id = None
         all_trades = []
         ex_trading_pair = self.get_exchange_trading_pair(trading_pair)
 
@@ -60,6 +61,7 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
             if trades:
                 last_timestamp = trades[-1]["T"]
                 all_trades.extend(trades)
+                logging.info(f"Last timestamp: {pd.to_datetime(last_timestamp, unit='ms')} - End timestamp: {pd.to_datetime(end_ts, unit='ms')}")
                 all_trades_collected = last_timestamp >= end_ts
                 from_id = trades[-1]["a"]
             else:
@@ -86,8 +88,10 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
                 return await response.json()
         except aiohttp.ClientResponseError as e:
             self.logger().error(f"Error fetching historical trades for {params}: {e}")
+            if e.status == 418:
+                sys.exit()
             if e.status == 429:
-                await asyncio.sleep(1)  # Sleep to respect rate limits
+                await asyncio.sleep(ONE_MINUTE)  # Sleep to respect rate limits
             raise e
         except Exception as e:
             self.logger().error(f"Error fetching historical trades for {params}: {e}")
