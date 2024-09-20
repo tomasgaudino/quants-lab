@@ -8,7 +8,6 @@ import aiohttp
 import pandas as pd
 
 from core.data_sources.trades_feed.trades_feed_base import TradesFeedBase
-from hummingbot.connector.derivative.hashkey_perpetual.hashkey_perpetual_constants import ONE_MINUTE
 
 
 class BinancePerpetualTradesFeed(TradesFeedBase):
