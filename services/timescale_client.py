@@ -44,10 +44,14 @@ class TimescaleClient:
             database=self.database
         )
 
-    async def create_trades_table(self):
+    @staticmethod
+    def get_table_name(connector_name: str, trading_pair: str) -> str:
+        return f"{connector_name}_{trading_pair.replace('-', '_')}_trades"
+
+    async def create_trades_table(self, table_name: str):
         async with self.pool.acquire() as conn:
-            await conn.execute('''
-                CREATE TABLE IF NOT EXISTS Trades (
+            await conn.execute(f'''
+                CREATE TABLE IF NOT EXISTS {table_name} (
                     id SERIAL PRIMARY KEY,
                     trade_id BIGINT NOT NULL,
                     connector_name TEXT NOT NULL,
@@ -64,32 +68,34 @@ class TimescaleClient:
         async with self.pool.acquire() as conn:
             await conn.execute('DROP TABLE IF EXISTS Trades')
 
-    async def delete_trades(self, connector_name: str = None, trading_pair: str = None):
+    async def delete_trades(self, table_name: str, connector_name: str = None, trading_pair: str = None):
         async with self.pool.acquire() as conn:
             if connector_name and trading_pair:
-                await conn.execute('''
-                    DELETE FROM Trades
+                await conn.execute(f'''
+                    DELETE FROM {table_name}
                     WHERE connector_name = $1 AND trading_pair = $2
                 ''', connector_name, trading_pair)
             elif connector_name:
-                await conn.execute('DELETE FROM Trades WHERE connector_name = $1', connector_name)
+                await conn.execute(f'DELETE FROM {table_name} WHERE connector_name = $1', connector_name)
             elif trading_pair:
-                await conn.execute('DELETE FROM Trades WHERE trading_pair = $1', trading_pair)
+                await conn.execute(f'DELETE FROM {table_name} WHERE trading_pair = $1', trading_pair)
             else:
-                await conn.execute('DELETE FROM Trades')
+                await conn.execute(f'DELETE FROM {table_name}')
 
-    async def append_trades(self, trades: List[Tuple[int, str, str, float, float, float, bool]]):
+    async def append_trades(self, table_name: str, trades: List[Tuple[int, str, str, float, float, float, bool]]):
         async with self.pool.acquire() as conn:
-            await conn.executemany('''
-                INSERT INTO Trades (trade_id, connector_name, trading_pair, timestamp, price, volume, sell_taker)
+            await self.create_trades_table(table_name)
+            await conn.executemany(f'''
+                INSERT INTO {table_name} (trade_id, connector_name, trading_pair, timestamp, price, volume, sell_taker)
                 VALUES ($1, $2, $3, to_timestamp($4), $5, $6, $7)
                 ON CONFLICT (connector_name, trading_pair, trade_id) DO NOTHING
             ''', trades)
 
-    async def get_last_trade_id(self, connector_name: str, trading_pair: str) -> int:
+    async def get_last_trade_id(self, connector_name: str, trading_pair: str, table_name: str) -> int:
         async with self.pool.acquire() as conn:
-            result = await conn.fetchval('''
-                SELECT MAX(trade_id) FROM Trades
+            await self.create_trades_table(table_name)
+            result = await conn.fetchval(f'''
+                SELECT MAX(trade_id) FROM {table_name}
                 WHERE connector_name = $1 AND trading_pair = $2
             ''', connector_name, trading_pair)
             return result
@@ -98,15 +104,15 @@ class TimescaleClient:
         if self.pool:
             await self.pool.close()
 
-    async def get_trades(self, connector_name: str, trading_pair: str, start_time: float,
+    async def get_trades(self, connector_name: str, trading_pair: str, start_time: float, table_name: str,
                          end_time: Optional[float] = None) -> pd.DataFrame:
         if end_time is None:
             end_time = datetime.now().timestamp()
 
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch('''
+            rows = await conn.fetch(f'''
 SELECT trade_id, timestamp, price, volume, sell_taker
-FROM Trades
+FROM {table_name}
 WHERE connector_name = $1 AND trading_pair = $2
 AND timestamp BETWEEN to_timestamp($3) AND to_timestamp($4)
 ORDER BY timestamp
@@ -120,7 +126,12 @@ ORDER BY timestamp
 
     async def get_candles(self, connector_name: str, trading_pair: str, start_time: float, interval: str,
                           end_time: Optional[float] = None) -> Candles:
-        trades = await self.get_trades(connector_name, trading_pair, start_time, end_time)
+        table_name = self.get_table_name(connector_name, trading_pair)
+        trades = await self.get_trades(connector_name=connector_name,
+                                       trading_pair=trading_pair,
+                                       start_time=start_time,
+                                       end_time=end_time,
+                                       table_name=table_name)
         if trades.empty:
             candles_df = pd.DataFrame(columns=['open', 'high', 'low', 'close', 'volume', 'timestamp'])
         else:
@@ -139,22 +150,23 @@ ORDER BY timestamp
         start_time = end_time - days * 24 * 60 * 60
         return await self.get_candles(connector_name, trading_pair, start_time, interval, end_time)
 
-    async def get_available_pairs(self) -> List[Tuple[str, str]]:
+    async def get_available_pairs(self, table_name: str) -> List[Tuple[str, str]]:
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch('''
+            rows = await conn.fetch(f'''
                 SELECT DISTINCT connector_name, trading_pair
-                FROM Trades
+                FROM {table_name}
                 ORDER BY connector_name, trading_pair
             ''')
         return [(row['connector_name'], row['trading_pair']) for row in rows]
 
     async def get_data_range(self, connector_name: Optional[str] = None,
                              trading_pair: Optional[str] = None) -> Dict[str, datetime]:
-        query = '''
+        table_name = self.get_table_name(connector_name, trading_pair)
+        query = f'''
 SELECT
 MIN(timestamp) as start_time,
 MAX(timestamp) as end_time
-FROM Trades
+FROM {table_name}
 '''
         params = []
         if connector_name or trading_pair:
@@ -176,6 +188,7 @@ FROM Trades
             'end_time': row['end_time']
         }
 
+    # TODO: Implement this method with table name
     async def get_all_data_ranges(self) -> Dict[Tuple[str, str], Dict[str, datetime]]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch('''
