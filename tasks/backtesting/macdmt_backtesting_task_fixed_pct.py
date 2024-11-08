@@ -13,10 +13,10 @@ from core.services.timescale_client import TimescaleClient
 from core.task_base import BaseTask
 from hummingbot.strategy_v2.backtesting import DirectionalTradingBacktesting
 from hummingbot.strategy_v2.executors.position_executor.data_types import TrailingStop
-from research_notebooks.macd_mt.madbb_dynamic_config_generation import MACDMTConfigGenerator
-#from research_notebooks.macd_mt.madbb_fixed_pct_generation import MACDMTConfigGenerator
-from core.data_sources import CLOBDataSource
+#from research_notebooks.macd_mt.madbb_dynamic_config_generation import MACDMTConfigGenerator
+from research_notebooks.macd_mt.madbb_fixed_pct_config_generation import MACDMTConfigGenerator
 
+from core.data_sources import CLOBDataSource
 
 from decimal import Decimal
 import optuna
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
-class MACDMTBacktestingTask(BaseTask):
+class MACDMTBacktestingTaskFixedPCT(BaseTask):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name, frequency, config)
         self.resolution = self.config["resolution"]
@@ -98,7 +98,7 @@ class MACDMTBacktestingTask(BaseTask):
             config_generator.start = start_time
             config_generator.end = end_time
             today_str = datetime.datetime.now().strftime("%Y-%m-%d")
-            await optimizer.optimize(study_name=f"macdmt_task_dynamic{today_str}",
+            await optimizer.optimize(study_name=f"macdmt_fixed_pct_task_{today_str}",
                                      config_generator=config_generator, n_trials=50)
 
 
@@ -128,9 +128,8 @@ async def main():
         "optuna_config": optuna_config
 
     }
-    task = MACDMTBacktestingTask("Backtesting", timedelta(hours=12), config)
+    task = MACDMTBacktestingTaskFixedPCT("Backtesting", timedelta(hours=12), config)
     await task.execute()
-
 
 
 if __name__ == "__main__":

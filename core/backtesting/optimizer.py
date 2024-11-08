@@ -313,8 +313,6 @@ class StrategyOptimizer:
         try:
             # Generate configuration using the config generator
             backtesting_config = await config_generator.generate_config(trial)
-#            backtesting_config.config.trading_pair = config_generator.trading_pair
-#            backtesting_config.config.candles_trading_pair = config_generator.candles_trading_pair
 
             # Await the backtesting result
             backtesting_result = await self._backtesting_engine.run_backtesting(
