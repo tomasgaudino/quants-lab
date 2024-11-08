@@ -99,7 +99,7 @@ class MACDMTBacktestingTask(BaseTask):
             config_generator.end = end_time
             today_str = datetime.datetime.now().strftime("%Y-%m-%d")
             await optimizer.optimize(study_name=f"macdmt_task_dynamic{today_str}",
-                                     config_generator=config_generator, n_trials=50)
+                                     config_generator=config_generator, n_trials=100)
 
 
 async def main():
