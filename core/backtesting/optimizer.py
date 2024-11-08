@@ -313,13 +313,15 @@ class StrategyOptimizer:
         try:
             # Generate configuration using the config generator
             backtesting_config = await config_generator.generate_config(trial)
+#            backtesting_config.config.trading_pair = config_generator.trading_pair
+#            backtesting_config.config.candles_trading_pair = config_generator.candles_trading_pair
 
             # Await the backtesting result
             backtesting_result = await self._backtesting_engine.run_backtesting(
                 config=backtesting_config.config,
                 start=backtesting_config.start,
                 end=backtesting_config.end,
-                backtesting_resolution=self.resolution,
+                backtesting_resolution='1s',
                 backtester=config_generator.backtester,
             )
             strategy_analysis = backtesting_result.results
@@ -334,7 +336,7 @@ class StrategyOptimizer:
             trial.set_user_attr("executors", executors_df.to_json())
 
             # Return the value you want to optimize
-            return strategy_analysis["sharpe_ratio"]
+            return strategy_analysis["net_pnl"]
         except Exception as e:
             print(f"An error occurred during optimization: {str(e)}")
             traceback.print_exc()
