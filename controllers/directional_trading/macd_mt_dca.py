@@ -227,11 +227,19 @@ class MacdMTDCAControllerConfig(DirectionalTradingControllerConfigBase):
         return v
     
     def get_spreads_and_amounts_in_quote(self,
+                                         trade_type: TradeType,
                                          total_amount_quote: Decimal):
         # Equally distribute if amounts_pct is not set
-        spreads = self.dca_spreads
-        normalized_amounts_pct = [Decimal('1.0') / len(spreads) for _ in spreads]
-        
+        amounts_pct = self.dca_amounts
+        if amounts_pct is None:
+            # Equally distribute if amounts_pct is not set
+            spreads = self.dca_spreads
+            normalized_amounts_pct = [Decimal('1.0') / len(spreads) for _ in spreads]
+        else:
+            if trade_type == TradeType.BUY:
+                normalized_amounts_pct = [Decimal(amt_pct) / sum(amounts_pct) for amt_pct in amounts_pct]
+            else:  # TradeType.SELL
+                normalized_amounts_pct = [Decimal(amt_pct) / sum(amounts_pct) for amt_pct in amounts_pct]
 
         return self.dca_spreads, [amt_pct * total_amount_quote for amt_pct in normalized_amounts_pct]
 
