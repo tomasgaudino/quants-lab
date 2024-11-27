@@ -458,7 +458,7 @@ class MacdMTDCAController(DirectionalTradingControllerBase):
 
     def get_executor_config(self, trade_type: TradeType, price: Decimal, amount: Decimal ):
         
-        spread, amounts_quote = self.config.get_spreads_and_amounts_in_quote(amount * price)
+        spread, amounts_quote = self.config.get_spreads_and_amounts_in_quote(trade_type, amount * price)
         spread_multiplier = self.get_spread_multiplier()
 
         if trade_type == TradeType.BUY:

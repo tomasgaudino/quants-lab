@@ -26,7 +26,7 @@ async def main():
         "database": os.getenv("TIMESCALE_DB", "timescaledb")
     }
     optuna_config = {
-        "host": os.getenv("OPTUNA_HOST", "63.250.52.93"),
+        "host": os.getenv("OPTUNA_HOST", "localhost"),
         "port": os.getenv("OPTUNA_PORT", 5433),
         "user": os.getenv("OPTUNA_USER", "admin"),
         "password": os.getenv("OPTUNA_PASSWORD", "admin"),
@@ -40,8 +40,8 @@ async def main():
         "connector_name": "binance_perpetual",
         "timescale_config": timescale_config,
         "optuna_config": optuna_config,
-        "selected_pairs": ['1000BONK-USDT', '1000PEPE-USDT', "HIGH-USDT"],
-        "trials_per_pair": 5
+        "selected_pairs": ['1000BONK-USDT', '1000PEPE-USDT', 'ENA-USDT'],
+        "trials_per_pair": 30
     }
 
 

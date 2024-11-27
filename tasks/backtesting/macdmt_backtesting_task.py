@@ -57,7 +57,9 @@ class MACDMTBacktestingTask(BaseTask):
             optimizer = StrategyOptimizer(
                 storage_name=storage_name,
                 resolution=self.resolution,
-                root_path=self.config["root_path"],)
+                root_path=self.config["root_path"],
+                custom_backtester=DirectionalTradingBacktesting()
+            )
             optimizer.load_candles_cache_by_connector_pair(connector_name=self.connector_name, trading_pair=trading_pair)
             candles_1s = optimizer._backtesting_engine._bt_engine.backtesting_data_provider.candles_feeds[
                 (f"{self.connector_name}_{trading_pair}_{self.resolution}")]
