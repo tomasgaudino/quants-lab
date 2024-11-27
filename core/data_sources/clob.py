@@ -5,6 +5,7 @@ import time
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
+from bidict import bidict
 from hummingbot.client.config.client_config_map import ClientConfigMap
 from hummingbot.client.config.config_helpers import ClientConfigAdapter, get_connector_class
 from hummingbot.client.settings import AllConnectorSettings, ConnectorType
@@ -61,6 +62,21 @@ class CLOBDataSource:
     def candles_cache(self):
         return {key: Candles(candles_df=value, connector_name=key[0], trading_pair=key[1], interval=key[2])
                 for key, value in self._candles_cache.items()}
+
+    def get_candles_from_cache(self,
+                               connector_name: str,
+                               trading_pair: str,
+                               interval: str):
+        cache_key = (connector_name, trading_pair, interval)
+        if cache_key in self._candles_cache:
+            cached_df = self._candles_cache[cache_key]
+
+            return Candles(candles_df=cached_df, connector_name=connector_name,
+                           trading_pair=trading_pair, interval=interval)
+        else:
+            return None
+
+
 
     async def get_candles(self,
                           connector_name: str,
@@ -185,6 +201,8 @@ class CLOBDataSource:
         connector = connector_class(**init_params)
         return connector
 
+    # TODO: ADD ORDER BOOK SNAPSHOT METHOD
+
     async def get_trading_rules(self, connector_name: str):
         connector = self.connectors.get(connector_name)
         await connector._update_trading_rules()
@@ -195,7 +213,14 @@ class CLOBDataSource:
         os.makedirs(candles_path, exist_ok=True)
         for key, df in self._candles_cache.items():
             candles_path = os.path.join(root_path, "data", "candles")
-            df.to_csv(os.path.join(candles_path, f"{key[0]}|{key[1]}|{key[2]}.csv"), index=False)
+            filename = os.path.join(candles_path, f"{key[0]}|{key[1]}|{key[2]}.parquet")
+            df.to_parquet(
+                filename,
+                engine='pyarrow',
+                compression='snappy',
+                index=True
+            )
+
         logger.info("Candles cache dumped")
 
     def load_candles_cache(self, root_path: str = ""):
@@ -210,17 +235,24 @@ class CLOBDataSource:
                 continue
             try:
                 connector_name, trading_pair, interval = file.split(".")[0].split("|")
-                candles = pd.read_csv(os.path.join(candles_path, file))
+                candles = pd.read_parquet(os.path.join(candles_path, file))
                 candles.index = pd.to_datetime(candles.timestamp, unit='s')
                 candles.index.name = None
+                columns = ['open', 'high', 'low', 'close', 'volume', 'quote_asset_volume',
+                           'n_trades', 'taker_buy_base_volume', 'taker_buy_quote_volume']
+                for column in columns:
+                    candles[column] = pd.to_numeric(candles[column])
+
                 self._candles_cache[(connector_name, trading_pair, interval)] = candles
             except Exception as e:
                 logger.error(f"Error loading {file}: {type(e).__name__} - {e}")
 
     async def get_trades(self, connector_name: str, trading_pair: str, start_time: int, end_time: int,
-                         from_id: Optional[int] = None):
-        return await self.trades_feeds[connector_name].get_historical_trades(trading_pair, start_time, end_time,
-                                                                             from_id)
+                         from_id: Optional[int] = None, max_trades_per_call: int = 1_000_000):
+        async for chunk in self.trades_feeds[connector_name].get_historical_trades(
+                trading_pair, start_time, end_time, from_id, max_trades_per_call
+        ):
+            yield chunk
 
     @staticmethod
     def convert_interval_to_pandas_freq(interval: str) -> str:
@@ -228,3 +260,24 @@ class CLOBDataSource:
         Converts a candle interval string to a pandas frequency string.
         """
         return INTERVAL_MAPPING.get(interval, 'T')
+
+    @property
+    def interval_to_seconds(self):
+        return bidict({
+            "1s": 1,
+            "1m": 60,
+            "3m": 180,
+            "5m": 300,
+            "15m": 900,
+            "30m": 1800,
+            "1h": 3600,
+            "2h": 7200,
+            "4h": 14400,
+            "6h": 21600,
+            "8h": 28800,
+            "12h": 43200,
+            "1d": 86400,
+            "3d": 259200,
+            "1w": 604800,
+            "1M": 2592000
+        })

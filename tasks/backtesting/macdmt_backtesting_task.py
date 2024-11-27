@@ -34,72 +34,42 @@ class MACDMTBacktestingTask(BaseTask):
         self.root_path = self.config.get('root_path', "")
         self.backtesting_days = self.config["backtesting_days"]
         self.connector_name = self.config["connector_name"]
+        self.trading_pairs = self.config["selected_pairs"]
+        self.trials = self.config["trials_per_pair"]
 
     async def execute(self):
-        ts_client = TimescaleClient(
-            host=self.config["timescale_config"]["host"],
-            port=self.config["timescale_config"]["port"],
-            user=self.config["timescale_config"]["user"],
-            password=self.config["timescale_config"]["password"],
-            database=self.config["timescale_config"]["database"]
-        )
-        await ts_client.connect()
-
-
-        logger.info("Generating top markets report")
-        CONNECTOR_NAME = "binance_perpetual"
-        # Trading Rules Filter
-        QUOTE_ASSET = "USDT"
-        MIN_NOTIONAL_SIZE = 5  # In USDT
-        clob = CLOBDataSource()
-
-        trading_rules = await clob.get_trading_rules(CONNECTOR_NAME)
-        trading_pairs = trading_rules.filter_by_quote_asset(QUOTE_ASSET) \
-            .filter_by_min_notional_size(Decimal(MIN_NOTIONAL_SIZE)) \
-            .get_all_trading_pairs()
-        trading_pairs_available = await ts_client.get_available_pairs()
-        trading_pairs_available = [pair[1] for pair in trading_pairs_available if pair[0] == CONNECTOR_NAME]
-
-        trading_pairs = [trading_pair for trading_pair in trading_pairs_available if trading_pair in trading_pairs]
-
-        optimizer = StrategyOptimizer(engine="postgres",
-                                      root_path=self.root_path,
-                                      resolution=self.resolution,
-                                      db_client=ts_client,
-                                      db_host=self.config["optuna_config"]["host"],
-                                      db_port=self.config["optuna_config"]["port"],
-                                      db_user=self.config["optuna_config"]["user"],
-                                      db_pass=self.config["optuna_config"]["password"],
-                                      database_name=self.config["optuna_config"]["database"],
-                                      )
-
-        logger.info("Optimizing strategy for top markets: {}".format(len(trading_pairs)))
-        start_date = datetime.datetime.now() - datetime.timedelta(days=self.backtesting_days)
-        end_date = datetime.datetime.now()
-        for trading_pair in trading_pairs:
-            config_generator = MACDMTConfigGenerator(start_date=start_date, end_date=end_date, backtester=DirectionalTradingBacktesting())
+        kwargs = {
+            "root_path": self.config["root_path"],
+            "db_host": self.config["optuna_config"]["host"],
+            "db_port": self.config["optuna_config"]["port"],
+            "db_user": self.config["optuna_config"]["user"],
+            "db_pass": self.config["optuna_config"]["password"],
+            "database_name": self.config["optuna_config"]["database"],
+        }
+        storage_name = StrategyOptimizer.get_storage_name(
+            engine=self.config.get("engine", "sqlite"),
+            **kwargs)
+        
+        selected_pairs = self.trading_pairs
+        logger.info("Optimizing strategy for top markets: {}".format(len(selected_pairs)))        
+        
+        for trading_pair in selected_pairs:
+            optimizer = StrategyOptimizer(
+                storage_name=storage_name,
+                resolution=self.resolution,
+                root_path=self.config["root_path"],)
+            optimizer.load_candles_cache_by_connector_pair(connector_name=self.connector_name, trading_pair=trading_pair)
+            candles_1s = optimizer._backtesting_engine._bt_engine.backtesting_data_provider.candles_feeds[
+                (f"{self.connector_name}_{trading_pair}_{self.resolution}")]
+            start_date = candles_1s.index.min()
+            end_date = candles_1s.index.max()
+            logger.info(f"Optimizing strategy for {self.connector_name} {trading_pair} {start_date} {end_date}")
+            config_generator = MACDMTConfigGenerator(start_date=start_date, end_date=end_date)
             config_generator.trading_pair = trading_pair
             config_generator.candles_trading_pair = trading_pair
-            candles = await optimizer._db_client.get_candles(self.connector_name, trading_pair,
-                                                             self.resolution, start_date.timestamp(), end_date.timestamp())
-            start_time = candles.data["timestamp"].min()
-            end_time = candles.data["timestamp"].max()
-            config_generator.backtester.backtesting_data_provider.candles_feeds[
-                f"{self.connector_name}_{trading_pair}_{self.resolution}"] = candles.data
-            config_generator.start = start_time
-            config_generator.end = end_time
-            logger.info(f"Fetching candles for {self.connector_name} {trading_pair} {start_date} {end_date}")
-            candles = await optimizer._db_client.get_candles(self.connector_name, trading_pair,
-                                                             self.resolution, start_date.timestamp(), end_date.timestamp())
-            start_time = candles.data["timestamp"].min()
-            end_time = candles.data["timestamp"].max()
-            config_generator.backtester.backtesting_data_provider.candles_feeds[
-                f"{self.connector_name}_{trading_pair}_{self.resolution}"] = candles.data
-            config_generator.start = start_time
-            config_generator.end = end_time
             today_str = datetime.datetime.now().strftime("%Y-%m-%d")
             await optimizer.optimize(study_name=f"macdmt_task_dynamic{today_str}",
-                                     config_generator=config_generator, n_trials=100)
+                                     config_generator=config_generator, n_trials=self.trials)
 
 
 async def main():
@@ -123,9 +93,11 @@ async def main():
         "root_path": os.path.abspath(os.path.join(os.path.dirname(__file__), '..')),
         "resolution": "1s",
         "backtesting_days": 7, 
+        "engine": "sqlite", 
         "connector_name": "binance_perpetual",
         "timescale_config": timescale_config,
-        "optuna_config": optuna_config
+        "optuna_config": optuna_config, 
+        "selected_pairs": ['1000BONK-USDT', '1000PEPE-USDT']
 
     }
     task = MACDMTBacktestingTask("Backtesting", timedelta(hours=12), config)

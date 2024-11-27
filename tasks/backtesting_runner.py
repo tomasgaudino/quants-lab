@@ -39,14 +39,15 @@ async def main():
         "backtesting_days": 7, 
         "connector_name": "binance_perpetual",
         "timescale_config": timescale_config,
-        "optuna_config": optuna_config
-
+        "optuna_config": optuna_config,
+        "selected_pairs": ['1000BONK-USDT', '1000PEPE-USDT', "HIGH-USDT"],
+        "trials_per_pair": 5
     }
 
 
 
-    backtesting_task = MACDMTBacktestingTaskFixedPCT("Backtesting", timedelta(hours=12), config)
-    orchestrator.add_task(backtesting_task)
+    #backtesting_task = MACDMTBacktestingTaskFixedPCT("Backtesting", timedelta(hours=12), config)
+    #orchestrator.add_task(backtesting_task)
 
     
     backtesting_task = MACDMTBacktestingTask("Backtesting", timedelta(hours=12), config)
