@@ -64,6 +64,9 @@ class TripleBarrierAnalyser:
                  trade_cost: float = 0.0006,
                  dump_pickle: bool = True,
                  ):
+        self.classification_report = None
+        self.gini_df = None
+        self.resumen_proba = None
         self.df = df
         self.features_dict = features_dict
         self.external_feat = external_feat
@@ -115,7 +118,10 @@ class TripleBarrierAnalyser:
                     ('transformer', self.transformer),
                     ('prediction', self.best_random)
                 ]),
-                'extra_features': self.external_feat
+                'extra_features': self.external_feat,
+                'feat_importance': self.gini_df,
+                'classification_report': self.classification_report
+
             }
             with open('pipeline.pkl', 'wb') as f:
                 pickle.dump(data_to_pickle, f)
@@ -199,10 +205,12 @@ class TripleBarrierAnalyser:
             resumen_rs = pd.DataFrame(rf_random.cv_results_)
             print(resumen_rs)
             print("Classification Process is over")
-            print(classification_report(self.label_encoder.inverse_transform(self.y_test),
-                                        self.label_encoder.inverse_transform(self.y_pred)))
 
         accuracy = accuracy_score(self.y_test, self.y_pred)
+        self.classification_report = classification_report(self.label_encoder.inverse_transform(self.y_test),
+                                        self.label_encoder.inverse_transform(self.y_pred),
+                                        output_dict=True)
+        print(classification_report)
         self.accuracy = accuracy
         print('accuracy: ', accuracy)
 
@@ -227,8 +235,6 @@ class TripleBarrierAnalyser:
         # resumen_proba[['0','1','2']]=pd.DataFrame(pred_prob)
         y_pred_train_transform = self.label_encoder.inverse_transform(self.y_pred_train)
         y_train_transform = self.label_encoder.inverse_transform(self.y_train)
-        resumen_proba.to_csv('data/actual_predictions_' + self.model_kind + '.csv')
-
         from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
         matrix = confusion_matrix(y_train_transform, y_pred_train_transform)
@@ -253,12 +259,12 @@ class TripleBarrierAnalyser:
             
             # Gini Importance
             gini_importance = classifier.feature_importances_
-            gini_df = pd.DataFrame({
+            self.gini_df = pd.DataFrame({
                 'Feature': self.X_columns,
                 'Class': class_name,
                 'Gini Importance': gini_importance
             })
-            gini_summary_list.append(gini_df)
+            gini_summary_list.append(pd.DataFrame(self.gini_df))
             
             # Permutation Importance
             result = permutation_importance(classifier, self.X, self.y == i, n_repeats=10, random_state=42, n_jobs=-1)
@@ -351,13 +357,13 @@ if __name__ == "__main__":
     RF_CONFIG = ModelConfig(
         name="Random Forest",
         params={
-            'estimator__n_estimators': [1000],  # Or use [int(x) for x in np.linspace(start=100, stop=1000, num=3)]
-            'estimator__max_features': ['sqrt'],  # Or ['log2']
-            'estimator__max_depth': [20, 55, 100],  # Or use [int(x) for x in np.linspace(10, 100, num=3)]
-            'estimator__min_samples_split': [50, 100],
-            'estimator__min_samples_leaf': [30, 50],
-            'estimator__bootstrap': [True],
-            'estimator__class_weight': ['balanced']
+            'n_estimators': [1000],  # Or use [int(x) for x in np.linspace(start=100, stop=1000, num=3)]
+            'max_features': ['sqrt'],  # Or ['log2']
+            'max_depth': [20, 55, 100],  # Or use [int(x) for x in np.linspace(10, 100, num=3)]
+            'min_samples_split': [50, 100],
+            'min_samples_leaf': [30, 50],
+            'bootstrap': [True],
+            'class_weight': ['balanced']
         },
         model_instance=RandomForestClassifier(),
         one_vs_rest=True,
