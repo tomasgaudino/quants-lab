@@ -56,7 +56,7 @@ class TimescaleClient:
 
     @property
     def metrics_table_name(self):
-        return "summary_metrics"
+        return "trades_summary"
 
     @property
     def screener_table_name(self):
@@ -378,9 +378,9 @@ class TimescaleClient:
 
     async def get_db_status_df(self):
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch("""
+            rows = await conn.fetch(f"""
             SELECT *
-            FROM summary_metrics""")
+            FROM {self.metrics_table_name}""")
         df_cols = [
             "connector_name",
             "trading_pair",

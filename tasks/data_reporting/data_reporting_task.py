@@ -11,7 +11,8 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 import plotly.express as px
 from dotenv import load_dotenv
-
+import matplotlib.pyplot as plt
+from matplotlib import colors
 import asyncpg
 import pandas as pd
 import numpy as np
@@ -46,17 +47,20 @@ class TaskBase(BaseTask):
         message["From"] = sender_email
         message["To"] = ", ".join(recipients)
         message["Subject"] = subject
-        message.attach(MIMEText(body, "plain"))
+        message.attach(MIMEText(body, "html"))
         return message
 
-    def add_attachment(self, message: MIMEMultipart, path: str):
+    def add_attachment(self, message: MIMEMultipart, path: str, table: pd.DataFrame()):
         """Attaches a file to the email."""
-        with open(path, "rb") as attachment:
+        real_path = path + '.csv'
+        table.to_csv(real_path)
+        with open(real_path, "rb") as attachment:
             part = MIMEBase("application", "octet-stream")
             part.set_payload(attachment.read())
         encoders.encode_base64(part)
         part.add_header("Content-Disposition", f"attachment; filename= {os.path.basename(path)}")
         message.attach(part)
+        # Generate the heatmap PDF
 
     def send_email(self, message: MIMEMultipart, sender_email: str, app_password: str, smtp_server="smtp.gmail.com",
                    smtp_port=587):
@@ -74,6 +78,7 @@ class TaskBase(BaseTask):
 class ReportGeneratorTask(TaskBase):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name, frequency, config)
+        self.csv_dict = None
         self.base_metrics = None
 
     async def get_base_tables(self):
@@ -84,10 +89,17 @@ class ReportGeneratorTask(TaskBase):
 
     @staticmethod
     def is_new(row):
-        last_data_today = pd.to_datetime(row['to_timestamp']).timestamp() >= datetime.now().timestamp()
-        last_data_yesterday = pd.to_datetime(row['to_timestamp']).timestamp() >= (datetime.now() - timedelta(days=1)).timestamp()
-        first_data_yesterday = pd.to_datetime(row['from_timestamp']).timestamp() >= (datetime.now() - timedelta(days=1)).timestamp()
+        to_date = pd.to_datetime(row['to_timestamp']).date()
+        from_date = pd.to_datetime(row['from_timestamp']).date()
 
+        # Get today's date and yesterday's date
+        today_date = datetime.now().date()
+        yesterday_date = (datetime.now() - timedelta(days=1)).date()
+
+        # Compare the dates
+        last_data_today = to_date >= today_date
+        last_data_yesterday = to_date >= yesterday_date
+        first_data_yesterday = from_date >= yesterday_date
         if last_data_today:
             when = 'today'
         elif last_data_yesterday:
@@ -95,15 +107,17 @@ class ReportGeneratorTask(TaskBase):
         else:
             when = None
 
-        row['is_new'] = last_data_today & first_data_yesterday
-        row['when'] = when
+        # row['is_new'] = last_data_today & first_data_yesterday
+        # row['when'] = when
+        return (last_data_today & first_data_yesterday), when
 
     async def set_base_metrics(self):
         base_metrics = await self.ts_client.get_db_status_df()
         base_metrics["table_names"] = base_metrics.apply(lambda x: self.ts_client.get_trades_table_name(x["connector_name"], x["trading_pair"]), axis=1)
-        base_metrics['when'] = None
-        base_metrics['is_new'] = False
-        base_metrics.apply(self.is_new, axis=1)
+        # base_metrics['when'] = None
+        # base_metrics['is_new'] = False
+        # Apply the is_new function and unpack the tuple into 'is_new' and 'when' columns
+        base_metrics[['is_new', 'when']] = base_metrics.apply(lambda x: self.is_new(x), axis=1, result_type='expand')
         self.base_metrics = base_metrics.dropna(subset=["when"]).copy()
 
     async def generate_heatmap(self):
@@ -142,8 +156,66 @@ class ReportGeneratorTask(TaskBase):
         fig.show()
 
         return pdf_filename
+    @staticmethod
+    def generate_heatmap_table(data: dict) -> str:
+        """
+        Generates an HTML table with heatmap styling for specific columns.
+        """
+        # Flatten the nested dictionary into a pandas DataFrame
+        rows = []
+        for bot, bot_data in data.items():
+            for id_key, metrics in bot_data.items():
+                row = {"bot_name": bot, "id_key": id_key}
+                row.update(metrics["performance"])
+                rows.append(row)
+
+        df = pd.DataFrame(rows)
+
+        # Columns to apply heatmap
+        heatmap_columns = [
+            "realized_pnl_quote", "unrealized_pnl_quote", "unrealized_pnl_pct",
+            "realized_pnl_pct", "global_pnl_quote", "global_pnl_pct",
+            "volume_traded", "open_order_volume", "inventory_imbalance"
+        ]
+
+        # Normalize the values for the heatmap
+        norm = {}
+        for col in heatmap_columns:
+            if col in df.columns:
+                norm[col] = colors.Normalize(vmin=df[col].min(), vmax=df[col].max())
+
+        # Generate the HTML table with inline styles
+        table_html = '<table border="1" style="border-collapse: collapse; width: 100%;">'
+        table_html += "<thead>"
+        table_html += "<tr style='background-color: #f2f2f2; font-weight: bold;'>"
+        table_html += "".join([f"<th>{col}</th>" for col in df.columns])
+        table_html += "</tr>"
+        table_html += "</thead>"
+        table_html += "<tbody>"
+
+        for _, row in df.iterrows():
+            table_html += "<tr>"
+            for col in df.columns:
+                value = row[col]
+                if col in heatmap_columns:
+                    if pd.notna(value):  # Apply heatmap only for non-NaN values
+                        # Map the value to a color scale (green for positive, red for negative)
+                        cmap = colors.LinearSegmentedColormap.from_list("heatmap", ["#FF6666", "#FFFFFF", "#66FF66"])
+                        color = colors.to_hex(cmap(norm[col](value)))
+                        table_html += f"<td style='background-color: {color}; text-align: center;'>{value:.1f}</td>"
+                    else:
+                        table_html += "<td style='text-align: center;'>-</td>"
+                else:
+                    table_html += f"<td style='text-align: center;'>{value}</td>"
+            table_html += "</tr>"
+
+        table_html += "</tbody>"
+        table_html += "</table>"
+
+        return table_html
 
     async def execute(self):
+        print(f"\n\nDatetime:{datetime.now()}\n\n")
         await self.ts_client.connect()
         available_pairs = await self.ts_client.get_available_pairs()
         table_names = [self.ts_client.get_trades_table_name(connector_name, trading_pair)
@@ -153,12 +225,9 @@ class ReportGeneratorTask(TaskBase):
         active_bots_status = await self.backend_api_client.get_active_bots_status()
         performance_data = active_bots_status["data"]
         performance_by_bot_dict = {instance_name: data.get("performance") for instance_name, data in performance_data.items()}
-        performance_string = json.dumps(performance_by_bot_dict, indent=4)
-        # Generate the heatmap PDF
-        # heatmap_pdf = await self.generate_heatmap()
-
+        # performance_string = json.dumps(performance_by_bot_dict, indent=4)
         # Generate the report and prepare the email
-        report, csv_dict = self.generate_report(table_names, performance_string)
+        report = self.generate_report(table_names, performance_by_bot_dict)
 
         message = self.create_email(
             subject="Database Refresh Report - Thinking Science Journal",
@@ -170,16 +239,17 @@ class ReportGeneratorTask(TaskBase):
         # Attach CSV files, heatmap PDF, and other files
         # for filename in ["all_daily_metrics.csv", heatmap_pdf] + [f"{k}.csv" for k in csv_dict]:
         # TODO: try to replace all_daily_metrics by a class attribute like self.daily_metrics
-        for filename in ["all_daily_metrics.csv"] + [f"{k}.csv" for k in csv_dict]:
+        for filename, table in self.csv_dict.items():
             try:
-                self.add_attachment(message, filename)
+                self.add_attachment(message, filename + '.csv', table)
             except Exception as e:
                 print(f"Unable to attach file {filename}: {e}")
 
         # Send the email
         self.send_email(message, sender_email=self.config["email"], app_password=self.config["email_password"])
 
-    def generate_report(self, table_names: List[str], bots_report: str = None) -> (str, Dict[str, pd.DataFrame]):
+    def generate_report(self, table_names: List[str], bots_report: Dict) -> (str, Dict[str, pd.DataFrame]):
+        # Analyze the database for missing pairs, outdated pairs, etc.
         final_df = self.base_metrics
         missing_pairs_list = [pair for pair in table_names if pair not in final_df['table_names'].unique()]
         outdated_pairs_list = [pair for pair in table_names if
@@ -189,56 +259,61 @@ class ReportGeneratorTask(TaskBase):
         new_pairs_list = [pair for pair in table_names if
                           pair in final_df[final_df['is_new']]['table_names'].unique()]
 
-        report = f"\n\nHello Mr Pickantell!:\n"
-        report += f"Here are your fucking bots running:\n"
-        if len(bots_report) < 10:
-            report += f"You have no fucking bots\n"
+        # Start building the email body
+        report = f"""
+        <html>
+            <body>
+                <p>Hello Mr. Pickantell!:</p>
+                <p><b>Here are your bots running:</b></p>
+        """
+
+        # Generate the heatmap table for the bots report
+        if bots_report:
+            html_table = self.generate_heatmap_table(bots_report)
+            report += html_table
         else:
-            report += str(bots_report) + "\n\n"
-        report += f"\nHere's a quick review on your database:\n"
-        if not missing_pairs_list and not outdated_pairs_list:
-            report += "\n--> All trading pairs have been updated today."
+            report += "<p>You have no running bots. Please check your system.</p>"
+
+        # Add database analysis details
+        report += f"<p><b>Here's a quick review of your database:</b></p>"
+
+        # Create a more readable format for the lists
+        report += f"<ul><li><b>Missing trading pairs (not updated in 2 days):</b> {len(missing_pairs_list)} pairs</li>"
         if missing_pairs_list:
-            if len(missing_pairs_list) > 20:
-                report += "\n\n--> Missing trading pairs (not updated in 2 days):\nToo many pairs, printing missing_pairs.csv file instead"
-            else:
-                report += "\n\n--> Missing trading pairs (not updated in 2 days):\n" + "\n".join(
-                    f" - {pair}" for pair in missing_pairs_list)
+            report += "<ul>" + "".join(f"<li>{pair}</li>" for pair in missing_pairs_list) + "</ul>"
+        report += f"<li><b>Outdated trading pairs (not updated since yesterday):</b> {len(outdated_pairs_list)} pairs</li>"
         if outdated_pairs_list:
-            if len(outdated_pairs_list) > 20:
-                report += "\n\n--> Outdated trading pairs (not updated since yesterday):\nToo many pairs, printing outdated_pairs.csv file instead"
-            else:
-                report += "\n\n--> Outdated trading pairs (not updated since yesterday):\n" + "\n".join(
-                    f" - {pair}" for pair in outdated_pairs_list)
+            report += "<ul>" + "".join(f"<li>{pair}</li>" for pair in outdated_pairs_list) + "</ul>"
+        report += f"<li><b>Correct trading pairs (up to date):</b> {len(correct_pairs_list)} pairs</li>"
         if correct_pairs_list:
-            if len(correct_pairs_list) > 20:
-                report += "\n\n--> Correct trading pairs (up to date):\nToo many pairs, printing correct_pairs.csv file instead"
-            else:
-                report += "\n\n--> Correct trading pairs (up to date):\n" + "\n".join(
-                    f" - {pair}" for pair in correct_pairs_list)
+            report += "<ul>" + "".join(f"<li>{pair}</li>" for pair in correct_pairs_list) + "</ul>"
+        report += f"<li><b>New trading pairs:</b> {len(new_pairs_list)} pairs</li>"
         if new_pairs_list:
-            if len(new_pairs_list) > 20:
-                report += "\n\n--> New trading pairs (up to date):\nToo many pairs, printing new_pairs.csv file instead"
-            else:
-                report += "\n\n--> New trading pairs (up to date):\n" + "\n".join(
-                    f" - {pair}" for pair in new_pairs_list)
-        report += f"\n\nAdditional Database Flux Information:\n\n"
+            report += "<ul>" + "".join(f"<li>{pair}</li>" for pair in new_pairs_list) + "</ul>"
 
-        report += f"--> Amount of trading pairs missing (no info for 2 days) out of total pairs:{(len(missing_pairs_list)/len(table_names)):.2f}%\n"
-        report += f"--> Outdated pairs (no info since yesterday) out of total pairs: {(len(outdated_pairs_list)/len(table_names)):.2f}%\n"
-        report += f"--> Correct pairs (updated info) out of total pairs: {(len(correct_pairs_list) / len(table_names)):.2f}%\n"
-        report += f"--> New pairs out of total pairs:: {(len(new_pairs_list) / len(table_names)):.2f}%\n\n"
+        # Bold the "Additional Database Flux Information" section
+        report += f"<p><b>Additional Database Flux Information:</b></p>"
+        report += f"<p>--> Amount of trading pairs missing (no info for 2 days) out of total pairs: {(len(missing_pairs_list) / len(table_names) * 100):.2f}%</p>"
+        report += f"<p>--> Outdated pairs (no info since yesterday) out of total pairs: {(len(outdated_pairs_list) / len(table_names) * 100):.2f}%</p>"
+        report += f"<p>--> Correct pairs (updated info) out of total pairs: {(len(correct_pairs_list) / len(table_names) * 100):.2f}%</p>"
+        report += f"<p>--> New pairs out of total pairs:: {(len(new_pairs_list) / len(table_names) * 100):.2f}%</p>"
 
-        report += f"\n\nFor more information visit the attached files:\n++ all_daily_metrics.csv: general information about current databases\n++ trade_amount_heatmap.pdf: Per trading pair - % of total trades downloaded per day\n\n"
-        report += "See you soon and don't forget to be awesome!!"
+        report += f"<p><b>For more information visit the attached files:</b></p>"
+        report += f"<p>++ all_daily_metrics.csv: general information about current databases</p>"
+        report += f"<p>++ trade_amount_heatmap.pdf: Per trading pair - % of total trades downloaded per day</p>"
+        report += f"<p>See you soon and don't forget to be awesome!!</p>"
 
+        # Prepare CSV data for additional attachments
         csv_dict = {
-            "missing_pairs": final_df[final_df['trading_pair'].isin(missing_pairs_list)],
-            "outdated_pairs": final_df[final_df['trading_pair'].isin(outdated_pairs_list)],
-            "correct_pairs": final_df[final_df['trading_pair'].isin(correct_pairs_list)],
-            "new_pairs": final_df[final_df['trading_pair'].isin(new_pairs_list)]
+            "missing_pairs": pd.Series(missing_pairs_list),
+            "outdated_pairs": pd.Series(outdated_pairs_list),
+            "correct_pairs": pd.Series(correct_pairs_list),
+            "new_pairs": pd.Series(new_pairs_list),
         }
-        return report, {key: df for key, df in csv_dict.items() if len(df) > 20}
+        self.csv_dict = {key: df for key, df in csv_dict.items() if len(df) > 20}
+        self.csv_dict['all_daily_metrics'] = self.base_metrics
+
+        return report
 
 
 async def main():
@@ -247,8 +322,8 @@ async def main():
         "backend_api_host": os.getenv("TRADING_HOST", "localhost"),
         "email": "thinkingscience.ts@gmail.com",
         "email_password": "dqtn zjkf aumv esak",
-        # "recipients": ["palmiscianoblas@gmail.com", "federico.cardoso.e@gmail.com", "apelsantiago@gmail.com",  "tomasgaudino8@gmail.com"]
-        "recipients": ["palmiscianoblas@gmail.com"],
+        "recipients": ["palmiscianoblas@gmail.com", "federico.cardoso.e@gmail.com", "apelsantiago@gmail.com",  "tomasgaudino8@gmail.com"],
+        # "recipients": ["palmiscianoblas@gmail.com"],
         "export": True
     }
     task = ReportGeneratorTask(name="Report Generator", frequency=timedelta(hours=12), config=config)
@@ -257,3 +332,13 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+# <li>Missing trading pairs (not updated in 2 days): {len(missing_pairs_list)} pairs</li>
+#                     <li>{missing_pairs_list}</li>
+#                     <li>Outdated trading pairs (not updated since yesterday): {len(outdated_pairs_list)} pairs</li>
+#                     <li>{outdated_pairs_list}</li>
+#                     <li>Correct trading pairs (up to date): {len(correct_pairs_list)} pairs</li>
+#                     <li>{correct_pairs_list}</li>
+#                     <li>New trading pairs: {len(new_pairs_list)} pairs</li>
+#                     <li>{new_pairs_list}</li>

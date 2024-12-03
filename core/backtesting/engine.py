@@ -5,7 +5,7 @@ from typing import Dict, Optional
 import pandas as pd
 
 from core.data_structures.backtesting_result import BacktestingResult
-from hummingbot.strategy_v2.backtesting import DirectionalTradingBacktesting, MarketMakingBacktesting
+# from hummingbot.strategy_v2.backtesting import DirectionalTradingBacktesting, MarketMakingBacktesting
 from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
 from hummingbot.strategy_v2.controllers import ControllerConfigBase
 
