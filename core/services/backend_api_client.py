@@ -1,5 +1,5 @@
 import time
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 import aiohttp
 import pandas as pd
@@ -300,3 +300,43 @@ class BackendAPIClient(ClientBase):
             "credentials_profile": credentials,
         }
         await self.create_hummingbot_instance(deploy_config)
+
+    async def get_performance_results(self, executors: List[Dict[str, Any]]):
+        if not isinstance(executors, list) or len(executors) == 0:
+            raise ValueError("Executors must be a non-empty list of dictionaries")
+        # Check if all elements in executors are dictionaries
+        if not all(isinstance(executor, dict) for executor in executors):
+            raise ValueError("All elements in executors must be dictionaries")
+        endpoint = "get-performance-results"
+        payload = {
+            "executors": executors,
+        }
+
+        performance_results = await self.post(endpoint, payload=payload, auth=self.auth)
+        if "error" in performance_results:
+            raise Exception(performance_results["error"])
+        if "detail" in performance_results:
+            raise Exception(performance_results["detail"])
+        if "processed_data" not in performance_results:
+            data = None
+        else:
+            data = pd.DataFrame(performance_results["processed_data"])
+        if "executors" not in performance_results:
+            executors = []
+        else:
+            executors = [ExecutorInfo(**executor) for executor in performance_results["executors"]]
+        return {
+            "processed_data": data,
+            "executors": executors,
+            "results": performance_results["results"]
+        }
+
+    def list_databases(self):
+        """Get databases list."""
+        endpoint = "list-databases"
+        return self.post(endpoint, auth=self.auth)
+
+    def read_databases(self, db_paths: List[str]):
+        """Read databases."""
+        endpoint = "read-databases"
+        return self.post(endpoint, payload=db_paths, auth=self.auth)
