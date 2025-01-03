@@ -79,44 +79,38 @@ async def main():
     }
 
     gt = GeckoTerminalAsyncClient()
-    mongo_client = MongoDBClient()
+    mongo_client = MongoDBClient(debug_mode=True)
     
     try:
-        # Connect to MongoDB
         await mongo_client.connect()
         
         # Fetch data
         trending_pools_df = await gt.get_top_pools_by_network(config['NETWORK'])
         new_pools_df = await gt.get_new_pools_by_network(config['NETWORK'])
         
-        # Process trending pools
-        if not trending_pools_df.empty:
-            print("\nTrending Pools DataFrame Info:")
-            print(trending_pools_df.info())
-            print("\nSample of trending pools data:")
-            print(trending_pools_df.head())
-            
-            trending_pools_df = clean_pools(trending_pools_df, config)
-            trending_pools_df = filter_pools(trending_pools_df, config)
-            if not trending_pools_df.empty:
-                print("\nCleaned Trending Pools DataFrame Info:")
-                print(trending_pools_df.info())
-                await mongo_client.add_trending_pools(trending_pools_df)
+        # Clean and filter data
+        cleaned_trending = clean_pools(trending_pools_df.copy(), config)
+        cleaned_new = clean_pools(new_pools_df.copy(), config)
         
-        # Process new pools
-        if not new_pools_df.empty:
-            print("\nNew Pools DataFrame Info:")
-            print(new_pools_df.info())
-            print("\nSample of new pools data:")
-            print(new_pools_df.head())
-            
-            new_pools_df = clean_pools(new_pools_df, config)
-            new_pools_df = filter_pools(new_pools_df, config)
-            if not new_pools_df.empty:
-                print("\nCleaned New Pools DataFrame Info:")
-                print(new_pools_df.info())
-                await mongo_client.add_new_pools(new_pools_df)
-                
+        filtered_trending = filter_pools(cleaned_trending.copy(), config)
+        filtered_new = filter_pools(cleaned_new.copy(), config)
+        
+        # Store all data in a single document
+        await mongo_client.add_pools_data(
+            trending_pools_df=trending_pools_df,
+            new_pools_df=new_pools_df,
+            filtered_trending_pools_df=filtered_trending,
+            filtered_new_pools_df=filtered_new
+        )
+        
+        # Example of reading the data back
+        latest_data = await mongo_client.get_latest_pools_data()
+        print("\nLatest data timestamp:", latest_data['timestamp'])
+        
+        # Get historical data from last 24 hours
+        historical_data = await mongo_client.get_pools_data(hours_ago=24)
+        print("\nHistorical data timestamps:", len(historical_data['timestamps']))
+        
     except Exception as e:
         print(f"Error in main execution: {str(e)}")
         

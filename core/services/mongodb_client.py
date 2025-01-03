@@ -7,9 +7,10 @@ from datetime import datetime, timedelta
 
 
 class MongoDBClient:
-    def __init__(self):
+    def __init__(self, debug_mode: bool = False):
         self.client = None
         self.db = None
+        self.debug_mode = debug_mode
         load_dotenv()
         
     async def connect(self):
@@ -28,8 +29,25 @@ class MongoDBClient:
             self.db = self.client.memedex_db
             await self.db.command('ping')
             print("Successfully connected to MongoDB")
+            
+            # Create index on timestamp if it doesn't exist
+            await self.db.pools.create_index('timestamp', unique=True)
+            
+            # If in debug mode, reset collections
+            if self.debug_mode:
+                await self.reset_collections()
+            
         except Exception as e:
             print(f"Failed to connect to MongoDB: {str(e)}")
+            raise
+
+    async def reset_collections(self):
+        """Reset all collections in the database."""
+        try:
+            result = await self.db.pools.delete_many({})
+            print(f"Reset collections: Deleted {result.deleted_count} documents from pools collection")
+        except Exception as e:
+            print(f"Error resetting collections: {str(e)}")
             raise
 
     async def disconnect(self):
@@ -38,118 +56,45 @@ class MongoDBClient:
             self.client.close()
             print("Disconnected from MongoDB")
 
-    async def add_trending_pools(self, df: pd.DataFrame):
+    async def add_pools_data(self, trending_pools_df: pd.DataFrame, new_pools_df: pd.DataFrame,
+                            filtered_trending_pools_df: pd.DataFrame, filtered_new_pools_df: pd.DataFrame):
         """
-        Add trending pools data to MongoDB.
-        Expected DataFrame columns: TBD - adjust according to your data structure
+        Add all pools data to MongoDB in a single document with timestamp as primary key.
         """
-        if df.empty:
-            return
-        
-        collection = self.db.trending_pools
-        
-        # Convert DataFrame to list of dictionaries and add timestamp
-        records = df.to_dict('records')
+        collection = self.db.pools
         timestamp = datetime.utcnow()
-        for record in records:
-            record['timestamp'] = timestamp
+        
+        document = {
+            'timestamp': timestamp,
+            'trending_pools': trending_pools_df.to_dict('records') if not trending_pools_df.empty else [],
+            'filtered_trending_pools': filtered_trending_pools_df.to_dict('records') if not filtered_trending_pools_df.empty else [],
+            'new_pools': new_pools_df.to_dict('records') if not new_pools_df.empty else [],
+            'filtered_new_pools': filtered_new_pools_df.to_dict('records') if not filtered_new_pools_df.empty else []
+        }
         
         try:
-            result = await collection.insert_many(records)
-            inserted_count = len(result.inserted_ids)
-            print(f"Successfully inserted {inserted_count} trending pools")
+            await collection.insert_one(document)
+            print(f"Successfully inserted pools data for timestamp {timestamp}")
             
-            # Verify the insertion
-            count = await collection.count_documents({'timestamp': timestamp})
-            print(f"Verified {count} documents with timestamp {timestamp}")
-            return inserted_count
+            # Verify counts
+            print(f"Trending pools: {len(document['trending_pools'])}")
+            print(f"Filtered trending pools: {len(document['filtered_trending_pools'])}")
+            print(f"New pools: {len(document['new_pools'])}")
+            print(f"Filtered new pools: {len(document['filtered_new_pools'])}")
             
         except Exception as e:
-            print(f"Error inserting trending pools: {str(e)}")
+            print(f"Error inserting pools data: {str(e)}")
             raise
 
-    async def add_new_pools(self, df: pd.DataFrame):
+    async def get_pools_data(self, hours_ago: int = None) -> dict:
         """
-        Add new pools data to MongoDB.
-        Expected DataFrame columns: TBD - adjust according to your data structure
-        """
-        if df.empty:
-            return
-        
-        collection = self.db.new_pools
-        
-        records = df.to_dict('records')
-        timestamp = datetime.utcnow()
-        for record in records:
-            record['timestamp'] = timestamp
-        
-        try:
-            result = await collection.insert_many(records)
-            inserted_count = len(result.inserted_ids)
-            print(f"Successfully inserted {inserted_count} new pools")
-            
-            # Verify the insertion
-            count = await collection.count_documents({'timestamp': timestamp})
-            print(f"Verified {count} documents with timestamp {timestamp}")
-            return inserted_count
-            
-        except Exception as e:
-            print(f"Error inserting new pools: {str(e)}")
-            raise
-
-    async def add_stakers(self, df: pd.DataFrame):
-        """
-        Add stakers data to MongoDB.
-        Expected DataFrame columns: TBD - adjust according to your data structure
-        """
-        if df.empty:
-            return
-        
-        collection = self.db.stakers
-        
-        records = df.to_dict('records')
-        timestamp = datetime.utcnow()
-        for record in records:
-            record['timestamp'] = timestamp
-        
-        try:
-            await collection.insert_many(records)
-            print(f"Successfully inserted {len(records)} stakers")
-        except Exception as e:
-            print(f"Error inserting stakers: {str(e)}")
-            raise
-
-    async def add_top_holders(self, df: pd.DataFrame):
-        """
-        Add top holders data to MongoDB.
-        Expected DataFrame columns: TBD - adjust according to your data structure
-        """
-        if df.empty:
-            return
-        
-        collection = self.db.top_holders
-        
-        records = df.to_dict('records')
-        timestamp = datetime.utcnow()
-        for record in records:
-            record['timestamp'] = timestamp
-        
-        try:
-            await collection.insert_many(records)
-            print(f"Successfully inserted {len(records)} top holders")
-        except Exception as e:
-            print(f"Error inserting top holders: {str(e)}")
-            raise 
-
-    async def get_trending_pools(self, hours_ago: int = None) -> pd.DataFrame:
-        """
-        Get trending pools data from MongoDB.
+        Get pools data from MongoDB.
         Args:
             hours_ago: If provided, only return data from the last N hours
         Returns:
-            DataFrame with trending pools data
+            Dictionary containing DataFrames for each pool type
         """
-        collection = self.db.trending_pools
+        collection = self.db.pools
         query = {}
         
         if hours_ago is not None:
@@ -157,138 +102,87 @@ class MongoDBClient:
             query = {'timestamp': {'$gte': cutoff_time}}
             
         try:
-            cursor = collection.find(query)
+            cursor = collection.find(query).sort('timestamp', -1)  # Sort by timestamp descending
             documents = await cursor.to_list(length=None)
+            
             if not documents:
-                print("No trending pools data found")
-                return pd.DataFrame()
-                
-            df = pd.DataFrame(documents)
-            # Remove MongoDB's _id column
-            if '_id' in df.columns:
-                df = df.drop('_id', axis=1)
-                
-            print(f"Retrieved {len(df)} trending pools records")
-            return df
+                print("No pools data found")
+                return {
+                    'trending_pools': pd.DataFrame(),
+                    'filtered_trending_pools': pd.DataFrame(),
+                    'new_pools': pd.DataFrame(),
+                    'filtered_new_pools': pd.DataFrame(),
+                    'timestamps': []
+                }
             
-        except Exception as e:
-            print(f"Error retrieving trending pools: {str(e)}")
-            raise
-
-    async def get_new_pools(self, hours_ago: int = None) -> pd.DataFrame:
-        """
-        Get new pools data from MongoDB.
-        Args:
-            hours_ago: If provided, only return data from the last N hours
-        Returns:
-            DataFrame with new pools data
-        """
-        collection = self.db.new_pools
-        query = {}
-        
-        if hours_ago is not None:
-            cutoff_time = datetime.utcnow() - timedelta(hours=hours_ago)
-            query = {'timestamp': {'$gte': cutoff_time}}
-            
-        try:
-            cursor = collection.find(query)
-            documents = await cursor.to_list(length=None)
-            if not documents:
-                print("No new pools data found")
-                return pd.DataFrame()
-                
-            df = pd.DataFrame(documents)
-            if '_id' in df.columns:
-                df = df.drop('_id', axis=1)
-                
-            print(f"Retrieved {len(df)} new pools records")
-            return df
-            
-        except Exception as e:
-            print(f"Error retrieving new pools: {str(e)}")
-            raise
-
-    async def get_stakers(self, hours_ago: int = None) -> pd.DataFrame:
-        """
-        Get stakers data from MongoDB.
-        Args:
-            hours_ago: If provided, only return data from the last N hours
-        Returns:
-            DataFrame with stakers data
-        """
-        collection = self.db.stakers
-        query = {}
-        
-        if hours_ago is not None:
-            cutoff_time = datetime.utcnow() - timedelta(hours=hours_ago)
-            query = {'timestamp': {'$gte': cutoff_time}}
-            
-        try:
-            cursor = collection.find(query)
-            documents = await cursor.to_list(length=None)
-            if not documents:
-                print("No stakers data found")
-                return pd.DataFrame()
-                
-            df = pd.DataFrame(documents)
-            if '_id' in df.columns:
-                df = df.drop('_id', axis=1)
-                
-            print(f"Retrieved {len(df)} stakers records")
-            return df
-            
-        except Exception as e:
-            print(f"Error retrieving stakers: {str(e)}")
-            raise
-
-    async def get_top_holders(self, hours_ago: int = None) -> pd.DataFrame:
-        """
-        Get top holders data from MongoDB.
-        Args:
-            hours_ago: If provided, only return data from the last N hours
-        Returns:
-            DataFrame with top holders data
-        """
-        collection = self.db.top_holders
-        query = {}
-        
-        if hours_ago is not None:
-            cutoff_time = datetime.utcnow() - timedelta(hours=hours_ago)
-            query = {'timestamp': {'$gte': cutoff_time}}
-            
-        try:
-            cursor = collection.find(query)
-            documents = await cursor.to_list(length=None)
-            if not documents:
-                print("No top holders data found")
-                return pd.DataFrame()
-                
-            df = pd.DataFrame(documents)
-            if '_id' in df.columns:
-                df = df.drop('_id', axis=1)
-                
-            print(f"Retrieved {len(df)} top holders records")
-            return df
-            
-        except Exception as e:
-            print(f"Error retrieving top holders: {str(e)}")
-            raise
-
-    async def get_latest_data(self) -> dict:
-        """
-        Get the latest data from all collections.
-        Returns:
-            Dictionary containing DataFrames for each collection
-        """
-        try:
-            latest_data = {
-                'trending_pools': await self.get_trending_pools(hours_ago=24),
-                'new_pools': await self.get_new_pools(hours_ago=24),
-                'stakers': await self.get_stakers(hours_ago=24),
-                'top_holders': await self.get_top_holders(hours_ago=24)
+            # Separate the data into different DataFrames
+            result = {
+                'trending_pools': pd.DataFrame(),
+                'filtered_trending_pools': pd.DataFrame(),
+                'new_pools': pd.DataFrame(),
+                'filtered_new_pools': pd.DataFrame(),
+                'timestamps': [doc['timestamp'] for doc in documents]
             }
-            return latest_data
+            
+            # Combine all documents into single DataFrames
+            for key in ['trending_pools', 'filtered_trending_pools', 'new_pools', 'filtered_new_pools']:
+                all_records = []
+                for doc in documents:
+                    records = doc[key]
+                    for record in records:
+                        record['timestamp'] = doc['timestamp']
+                    all_records.extend(records)
+                
+                if all_records:
+                    result[key] = pd.DataFrame(all_records)
+            
+            print(f"Retrieved data for {len(documents)} timestamps")
+            for key, df in result.items():
+                if isinstance(df, pd.DataFrame):
+                    print(f"{key}: {len(df)} records")
+                    
+            return result
             
         except Exception as e:
-            print(f"Error retrieving latest data: {str(e)}")
+            print(f"Error retrieving pools data: {str(e)}")
+            raise
+
+    async def get_latest_pools_data(self) -> dict:
+        """
+        Get the most recent pools data entry.
+        Returns:
+            Dictionary containing DataFrames for each pool type from the latest entry
+        """
+        collection = self.db.pools
+        
+        try:
+            document = await collection.find_one(sort=[('timestamp', -1)])
+            
+            if not document:
+                print("No pools data found")
+                return {
+                    'trending_pools': pd.DataFrame(),
+                    'filtered_trending_pools': pd.DataFrame(),
+                    'new_pools': pd.DataFrame(),
+                    'filtered_new_pools': pd.DataFrame(),
+                    'timestamp': None
+                }
+            
+            result = {
+                'timestamp': document['timestamp'],
+                'trending_pools': pd.DataFrame(document['trending_pools']),
+                'filtered_trending_pools': pd.DataFrame(document['filtered_trending_pools']),
+                'new_pools': pd.DataFrame(document['new_pools']),
+                'filtered_new_pools': pd.DataFrame(document['filtered_new_pools'])
+            }
+            
+            print(f"Retrieved latest data from {document['timestamp']}")
+            for key, df in result.items():
+                if isinstance(df, pd.DataFrame):
+                    print(f"{key}: {len(df)} records")
+                    
+            return result
+            
+        except Exception as e:
+            print(f"Error retrieving latest pools data: {str(e)}")
             raise 
