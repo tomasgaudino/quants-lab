@@ -18,7 +18,17 @@ class PoolsTask(BaseTask):
         super().__init__(name=name, frequency=frequency, config=config)
         self.name = "pools_task"
         self.gt = GeckoTerminalAsyncClient()
-        self.mongo_client = MongoDBClient()
+        
+        # Initialize MongoDB client with config
+        mongodb_config = config.get('mongodb_config', {})
+        self.mongo_client = MongoDBClient(
+            username=mongodb_config.get('username'),
+            password=mongodb_config.get('password'),
+            host=mongodb_config.get('host'),
+            port=mongodb_config.get('port'),
+            database=mongodb_config.get('database'),
+            debug_mode=False
+        )
 
     async def pre_execute(self) -> None:
         """Pre-execution setup"""
