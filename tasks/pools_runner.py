@@ -41,7 +41,7 @@ async def main():
 
     pools_task = PoolsTask(
         name="Pools Data Collector",
-        frequency=timedelta(minutes=1),
+        frequency=timedelta(minutes=10),
         config=config
     )
     
