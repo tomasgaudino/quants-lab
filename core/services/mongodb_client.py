@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 from datetime import datetime, timedelta
+import logging
 
 
 class MongoDBClient:
@@ -31,7 +32,7 @@ class MongoDBClient:
     async def connect(self):
         """Connect to MongoDB using provided or environment variables."""
         connection_string = f"mongodb://{self.username}:{self.password}@{self.host}:{self.port}/?authSource=admin"
-        
+        logging.info(connection_string)
         try:
             self.client = AsyncIOMotorClient(
                 connection_string,
