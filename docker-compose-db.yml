@@ -10,6 +10,8 @@ services:
       - timescale-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    network_mode: host
+
   optunadb:
     container_name: optunadb
     image: postgres:latest
@@ -21,6 +23,8 @@ services:
       - optuna-data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
+    network_mode: host
+
   mongodb:
     image: mongo:latest
     container_name: mongodb
@@ -32,14 +36,11 @@ services:
       - "${MONGO_PORT}:27017"
     volumes:
       - mongodb_data:/data/db
-    networks:
-      - app-network
+    network_mode: host
+
 volumes:
   timescale-data:
     driver: local
   optuna-data:
     driver: local
   mongodb_data:
-networks:
-  app-network:
-    driver: bridge
