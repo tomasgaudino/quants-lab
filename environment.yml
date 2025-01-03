@@ -34,3 +34,5 @@ dependencies:
       - psycopg2-binary
       - pyarrow
       - pandas
+      - motor=3.3.2
+      - pymongo=4.6.1
