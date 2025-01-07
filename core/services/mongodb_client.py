@@ -14,7 +14,7 @@ class MongoDBClient:
         password: Optional[str] = None,
         host: Optional[str] = None,
         port: Optional[str] = None,
-        database: str = "memedex_db"
+        database: str = "mongodb"
     ):
         self.client = None
         self.db = None
@@ -195,4 +195,4 @@ class MongoDBClient:
             
         except Exception as e:
             print(f"Error retrieving latest pools data: {str(e)}")
-            raise 
+            raise

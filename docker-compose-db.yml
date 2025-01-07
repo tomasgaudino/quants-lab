@@ -34,12 +34,13 @@ services:
     ports:
       - "${MONGO_PORT}:27017"
     volumes:
-      - mongodb-data:/data/db
+      - mongo-db-data:/data/db
+    network_mode: host
 
 volumes:
   timescale-data:
     driver: local
   optuna-data:
     driver: local
-  mongodb-data:
+  mongo-db-data:
     driver: local
