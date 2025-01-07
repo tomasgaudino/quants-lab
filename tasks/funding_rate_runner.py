@@ -31,11 +31,12 @@ async def main():
         "db_config": mongodb_config,
         "connector_names": ["binance_perpetual"],
         "quote_asset": "USDT",
+        "n_top_funding_rates_per_group": 5
     }
 
     pools_task = FundingRatesTask(
         name="Funding Rate Collector",
-        frequency=timedelta(minutes=10),
+        frequency=timedelta(seconds=10),
         config=config
     )
 

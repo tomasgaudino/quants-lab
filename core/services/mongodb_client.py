@@ -235,3 +235,111 @@ class MongoDBClient:
         except Exception as e:
             logging.error(f"Error adding funding rates data: {str(e)}")
             raise
+
+    async def add_cointegration_results_data(self, cointegration_results: List[Dict[str, Any]]) -> None:
+        """
+        Add cointegration analysis results to MongoDB.
+        
+        Args:
+            cointegration_results (List[Dict]): List of cointegration result records with structure:
+            {
+                'base': str,           # The pair to go long
+                'quote': str,          # The pair to go short
+                'grid_base': {
+                    'start_price': float,  # Entry price for long
+                    'end_price': float,    # Target price for long
+                    'limit_price': float,  # Stop price for long
+                    'beta': float          # Coint Sensibility
+                },
+                'grid_quote': {
+                    'start_price': float,  # Entry price for short
+                    'end_price': float,    # Target price for short
+                    'limit_price': float,  # Stop price for short
+                    'beta': float          # Coint Sensibility
+                },
+                'coint_value': float       # Average cointegration value
+            }
+        """
+        try:
+            if not cointegration_results:
+                logging.warning("No cointegration results data to insert")
+                return
+
+            collection = self.db.cointegration_results
+            
+            # Create indexes if they don't exist
+            await collection.create_index([
+                ("base", 1),
+                ("quote", 1)
+            ])
+            
+            # Insert the cointegration results data
+            result = await collection.insert_many(cointegration_results)
+            logging.info(f"Successfully inserted {len(result.inserted_ids)} cointegration result records")
+            
+        except Exception as e:
+            logging.error(f"Error adding cointegration results data: {str(e)}")
+            raise
+
+    async def get_funding_rates(self, symbol: Optional[str] = None, start_time: Optional[datetime] = None, 
+                              end_time: Optional[datetime] = None) -> List[Dict[str, Any]]:
+        """
+        Retrieve funding rates from MongoDB with optional filtering by symbol and time range.
+        
+        Args:
+            symbol (str, optional): The trading pair symbol to filter by
+            start_time (datetime, optional): Start of time range to fetch rates from
+            end_time (datetime, optional): End of time range to fetch rates from
+            
+        Returns:
+            List[Dict]: List of funding rate records matching the criteria
+        """
+        try:
+            collection = self.db.funding_rates
+            query = {}
+            
+            if symbol:
+                query["symbol"] = symbol
+                
+            if start_time or end_time:
+                query["timestamp"] = {}
+                if start_time:
+                    query["timestamp"]["$gte"] = start_time
+                if end_time:
+                    query["timestamp"]["$lte"] = end_time
+                    
+            cursor = collection.find(query)
+            funding_rates = await cursor.to_list(length=None)
+            
+            logging.info(f"Retrieved {len(funding_rates)} funding rate records")
+            return funding_rates
+            
+        except Exception as e:
+            logging.error(f"Error retrieving funding rates: {str(e)}")
+            raise
+        
+    async def add_funding_rates_processed_data(self, processed_data: List[Dict[str, Any]]):
+        """
+        Add processed funding rates data to MongoDB with timestamp, pair1, pair2 and rate_difference.
+        
+        Args:
+            processed_data (List[Dict]): List of dictionaries containing processed funding rate data
+                                       with timestamp, pair1, pair2 and rate_difference fields
+        """
+        try:
+            collection = self.db.funding_rates_processed
+            
+            # Create compound index on timestamp and pairs if it doesn't exist
+            await collection.create_index([
+                ("timestamp", 1),
+                ("pair1", 1), 
+                ("pair2", 1)
+            ])
+            
+            # Insert the processed funding rates data
+            result = await collection.insert_many(processed_data)
+            logging.info(f"Successfully inserted {len(result.inserted_ids)} processed funding rate records")
+            
+        except Exception as e:
+            logging.error(f"Error adding processed funding rates data: {str(e)}")
+            raise

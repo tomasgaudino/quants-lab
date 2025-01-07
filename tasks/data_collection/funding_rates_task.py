@@ -1,4 +1,7 @@
 from datetime import timedelta
+from itertools import combinations
+
+import pandas as pd
 from dotenv import load_dotenv
 import logging
 import time
@@ -57,6 +60,40 @@ class FundingRatesTask(BaseTask):
                     })
 
                 await self.mongo_client.add_funding_rates_data(funding_rates)
+
+                df = pd.DataFrame(funding_rates)
+                # Generate all possible combinations of trading pairs
+                combinations_list = list(combinations(df['trading_pair'], 2))
+
+                # Create a DataFrame to store the combinations and rate differences
+                results = []
+
+                for pair1, pair2 in combinations_list:
+                    rate1 = df.loc[df['trading_pair'] == pair1, 'rate'].values[0]
+                    rate2 = df.loc[df['trading_pair'] == pair2, 'rate'].values[0]
+                    rate_difference = rate1 - rate2
+                    results.append({'pair1': pair1, 'pair2': pair2, 'rate_difference': rate_difference})
+
+                results_df = pd.DataFrame(results)
+
+                # Create an empty DataFrame to store the results
+                grouped_results = pd.DataFrame()
+
+                # Group by 'pair1'
+                grouped = results_df.groupby('pair1')
+
+                # Iterate over each group and get top 5 positive and top 5 negative
+                for pair, group in grouped:
+                    # Get top 5 positive
+                    top_largest = group[group['rate_difference'] > 0].nlargest(self.config.get("n_top_funding_rates_per_group", 5), 'rate_difference')
+                    # Get top 5 negative
+                    top_smallest = group[group['rate_difference'] < 0].nsmallest(self.config.get("n_top_funding_rates_per_group", 5), 'rate_difference')
+
+                    # Append the results to the final DataFrame
+                    grouped_results = pd.concat([grouped_results, top_largest, top_smallest], ignore_index=True)
+
+                grouped_results["timestamp"] = time.time()
+                await self.mongo_client.add_funding_rates_processed_data(grouped_results.to_dict(orient="records"))
                 logging.info(f"Successfully added {len(funding_rates)} funding rate records")
 
         except Exception as e:
@@ -79,7 +116,8 @@ async def main():
     task_config = {
         "connector_names": ["binance_perpetual"],
         "quote_asset": "USDT",
-        "db_config": mongodb_config
+        "db_config": mongodb_config,
+        "n_top_funding_rates_per_group": 5
     }
     task = FundingRatesTask(name="funding_rate_task",
                             frequency=timedelta(hours=1),
