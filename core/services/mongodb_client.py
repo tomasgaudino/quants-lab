@@ -39,7 +39,7 @@ class MongoDBClient:
             )
             self.db = self.client[self.database]
             await self.db.command('ping')
-            print(f"Successfully connected to MongoDB at {self.host}:{self.port}")
+            logging.info(f"Successfully connected to MongoDB at {self.host}:{self.port}")
             
             # Create index on timestamp if it doesn't exist
             await self.db.pools.create_index('timestamp', unique=True)

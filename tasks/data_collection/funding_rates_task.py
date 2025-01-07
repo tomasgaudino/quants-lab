@@ -19,7 +19,7 @@ load_dotenv()
 class FundingRatesTask(BaseTask):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name=name, frequency=frequency, config=config)
-        self.mongo_client = MongoDBClient()
+        self.mongo_client = MongoDBClient(**config.get("db_config", {}))
         self.clob = CLOBDataSource()
 
     async def initialize(self):
