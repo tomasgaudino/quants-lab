@@ -2,8 +2,9 @@ from datetime import timedelta
 from dotenv import load_dotenv
 import logging
 import time
+import os
 import asyncio
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 from core.data_structures.trading_rules import TradingRules
 from core.data_sources import CLOBDataSource
