@@ -70,9 +70,17 @@ class FundingRatesTask(BaseTask):
 
 
 async def main():
+    mongodb_config = {
+        "username": os.getenv('MONGO_INITDB_ROOT_USERNAME', "admin"),
+        "password": os.getenv('MONGO_INITDB_ROOT_PASSWORD', "admin"),
+        "host": os.getenv('MONGO_HOST', 'localhost'),
+        "port": os.getenv('MONGO_PORT', 27017),
+        "database": "mongodb"
+    }
     task_config = {
         "connector_names": ["binance_perpetual"],
         "quote_asset": "USDT",
+        "db_config": mongodb_config
     }
     task = FundingRatesTask(name="funding_rate_task",
                             frequency=timedelta(hours=1),
