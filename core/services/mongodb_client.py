@@ -1,6 +1,7 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import pandas as pd
 from dotenv import load_dotenv
+import logging
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 from datetime import datetime, timedelta
@@ -195,4 +196,42 @@ class MongoDBClient:
             
         except Exception as e:
             print(f"Error retrieving latest pools data: {str(e)}")
+            raise
+
+    async def add_funding_rates_data(self, funding_rates: List[Dict[str, Any]]) -> None:
+        """
+        Add funding rates data to MongoDB.
+        
+        Args:
+            funding_rates (List[Dict]): List of funding rate records with structure:
+            {
+                "index_price": float,
+                "mark_price": float,
+                "next_funding_utc_timestamp": int,
+                "rate": float,
+                "trading_pair": str,
+                "connector_name": str,
+                "timestamp": float
+            }
+        """
+        try:
+            if not funding_rates:
+                logging.warning("No funding rates data to insert")
+                return
+
+            collection = self.db.funding_rates
+            
+            # Create indexes if they don't exist
+            await collection.create_index([
+                ("trading_pair", 1),
+                ("connector_name", 1),
+                ("next_funding_utc_timestamp", 1)
+            ])
+            
+            # Insert the funding rates data
+            result = await collection.insert_many(funding_rates)
+            logging.info(f"Successfully inserted {len(result.inserted_ids)} funding rate records")
+            
+        except Exception as e:
+            logging.error(f"Error adding funding rates data: {str(e)}")
             raise
