@@ -38,7 +38,6 @@ class FundingRatesTask(BaseTask):
                 trading_pairs = trading_rules.filter_by_quote_asset(
                     self.config.get("quote_asset", "USDT")
                 ).get_all_trading_pairs()
-                trading_pairs = ["BTC-USDT", "ETH-USDT"]
 
                 tasks = []
                 for trading_pair in trading_pairs:
