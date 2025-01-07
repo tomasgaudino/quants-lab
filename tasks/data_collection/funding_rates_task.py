@@ -2,9 +2,7 @@ from datetime import timedelta
 from dotenv import load_dotenv
 import logging
 import time
-import aiohttp
 import asyncio
-import pandas as pd
 from typing import List, Dict, Any
 
 from core.data_structures.trading_rules import TradingRules

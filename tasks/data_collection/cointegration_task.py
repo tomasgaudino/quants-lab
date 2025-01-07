@@ -1,13 +1,10 @@
 from datetime import timedelta
 from dotenv import load_dotenv
 import logging
-import time
-import aiohttp
 import asyncio
-import pandas as pd
+import os
 from typing import List, Dict, Any
 
-from core.data_structures.trading_rules import TradingRules
 from core.data_sources import CLOBDataSource
 from core.services.mongodb_client import MongoDBClient
 from core.task_base import BaseTask
@@ -30,7 +27,7 @@ class CointegrationTask(BaseTask):
         """Main task execution logic."""
         try:
             await self.initialize()
-            cointegration_results: List[Dict[str, Any]] = {}
+            cointegration_results: List[Dict[str, Any]] = [{}]
             await self.mongo_client.add_funding_rates_data(cointegration_results)
             logging.info(f"Successfully added {len(cointegration_results)} cointegration records")
 
@@ -44,9 +41,17 @@ class CointegrationTask(BaseTask):
 
 
 async def main():
+    mongodb_config = {
+        "username": os.getenv('MONGO_INITDB_ROOT_USERNAME', "admin"),
+        "password": os.getenv('MONGO_INITDB_ROOT_PASSWORD', "admin"),
+        "host": os.getenv('MONGO_HOST', 'localhost'),
+        "port": os.getenv('MONGO_PORT', 27017),
+        "database": "mongodb"
+    }
     task_config = {
         "connector_names": ["binance_perpetual"],
         "quote_asset": "USDT",
+        "db_config": mongodb_config
     }
     task = CointegrationTask(name="cointegration_task",
                              frequency=timedelta(hours=1),
