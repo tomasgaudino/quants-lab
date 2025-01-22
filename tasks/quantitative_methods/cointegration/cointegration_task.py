@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 import logging
 import asyncio
 import os
-import sys
 from typing import List, Dict, Any, Tuple
 
 from scipy import stats
@@ -286,7 +285,6 @@ class CointegrationTask(BaseTask):
         Returns:
             dict: Grid trading parameters and levels
         """
-        entry_threshold = self.config.get("entry_threshold", 1.5)
         stop_threshold = self.config.get("stop_threshold", 1.0)
         grid_levels = self.config.get("grid_levels", 5)
         time_limit_hours = self.config.get("time_limit_hours", 24)
@@ -303,14 +301,14 @@ class CointegrationTask(BaseTask):
 
         # Calculate target and stop prices
         if is_short:
-            entry_price = current_price * (1 + z_std * 0.25)
+            entry_price = current_price * (1 + (z_score * z_std * beta * 0.1))
             end_price = current_price * (1 - (z_score * z_std * beta))
-            limit_price = current_price * (1 + (stop_threshold * z_std * beta))
+            limit_price = current_price * (1 + (z_score * z_std * beta * 0.2))
             grid_direction = -1
         else:  # long
-            entry_price = current_price * (1 - z_std * 0.25)
+            entry_price = current_price * (1 - (z_score * z_std * beta * 0.1))
             end_price = current_price * (1 + (abs(z_score) * z_std * beta))
-            limit_price = current_price * (1 - (stop_threshold * z_std * beta))
+            limit_price = current_price * (1 - (abs(z_score) * z_std * beta * 0.2))
             grid_direction = 1
 
         # Generate grid levels
