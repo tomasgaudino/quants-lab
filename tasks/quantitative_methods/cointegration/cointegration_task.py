@@ -137,13 +137,29 @@ class CointegrationTask(BaseTask):
                     'start_price': float(long_position['entry_price']),
                     'end_price': float(long_position['end_price']),
                     'limit_price': float(long_position['limit_price']),
-                    'beta': float(long_position['beta'])  # Replace max_open_orders with beta
+                    'beta': float(long_position['beta']),
+                    'p_value': long_position['p_value'],
+                    'z_score': long_position['z_score'],
+                    'side': long_position['side'],
+                    'signal_strength': long_position['signal_strength'],
+                    'mean_reversion_prob': long_position['mean_reversion_prob'],
+                    'potential_profit': long_position['potential_profit'],
+                    'risk_ratio': long_position['risk_ratio'],
+                    'grid': long_position['grid']
                 },
                 'grid_quote': {
                     'start_price': float(short_position['entry_price']),
                     'end_price': float(short_position['end_price']),
                     'limit_price': float(short_position['limit_price']),
-                    'beta': float(short_position['beta'])  # Replace max_open_orders with beta
+                    'beta': float(short_position['beta']),
+                    'p_value': short_position['p_value'],
+                    'z_score': short_position['z_score'],
+                    'side': short_position['side'],
+                    'signal_strength': short_position['signal_strength'],
+                    'mean_reversion_prob': short_position['mean_reversion_prob'],
+                    'potential_profit': short_position['potential_profit'],
+                    'risk_ratio': short_position['risk_ratio'],
+                    'grid': short_position['grid']
                 },
                 'coint_value': float(coint_value)
             }
@@ -214,13 +230,11 @@ class CointegrationTask(BaseTask):
                             'quote': pair2,
                             'p_value': analysis_1vs2['p_value'],
                             'z_score': analysis_1vs2['current_z_score'],
+                            'grid': grid_1vs2,
                             'side': analysis_1vs2['side'],
                             'signal_strength': analysis_1vs2['signal_strength'],
                             'mean_reversion_prob': analysis_1vs2['mean_reversion_probability'],
                             'beta': analysis_1vs2['beta'],
-                            'entry_price': grid_1vs2['entry_price'] if grid_1vs2['side'] != 'both' else None,
-                            'end_price': grid_1vs2['end_price'] if grid_1vs2['side'] != 'both' else None,
-                            'limit_price': grid_1vs2['limit_price'] if grid_1vs2['side'] != 'both' else None
                         })
 
                         # Store results for second direction
@@ -230,12 +244,10 @@ class CointegrationTask(BaseTask):
                             'p_value': analysis_2vs1['p_value'],
                             'z_score': analysis_2vs1['current_z_score'],
                             'side': analysis_2vs1['side'],
+                            'grid': grid_2vs1,
                             'signal_strength': analysis_2vs1['signal_strength'],
                             'mean_reversion_prob': analysis_2vs1['mean_reversion_probability'],
                             'beta': analysis_2vs1['beta'],
-                            'entry_price': grid_2vs1['entry_price'] if grid_2vs1['side'] != 'both' else None,
-                            'end_price': grid_2vs1['end_price'] if grid_2vs1['side'] != 'both' else None,
-                            'limit_price': grid_2vs1['limit_price'] if grid_2vs1['side'] != 'both' else None
                         })
                         pbar.update(1)
                     except Exception as e:
@@ -244,13 +256,15 @@ class CointegrationTask(BaseTask):
 
         # Create DataFrame
         df = pd.DataFrame(results)
-
+        df["end_price"] = df["grid"].apply(lambda x: x["end_price"])
+        df["entry_price"] = df["grid"].apply(lambda x: x["entry_price"])
+        df["limit_price"] = df["grid"].apply(lambda x: x["limit_price"])
         # Add derived columns
-        df['Cointegrated'] = df['p_value'] < self.config.get("p_value_threshold", 0.05)
+        df['cointegrated'] = df['p_value'] < self.config.get("p_value_threshold", 0.05)
         df['potential_profit'] = np.where(df['side'] != 'both',
                                           abs(df['end_price'] - df['entry_price']) / df['entry_price'],
                                           0)
-        df['Risk_Ratio'] = np.where(df['side'] != 'both',
+        df['risk_ratio'] = np.where(df['side'] != 'both',
                                     abs(df['end_price'] - df['entry_price']) /
                                     abs(df['limit_price'] - df['entry_price']),
                                     0)
@@ -285,54 +299,38 @@ class CointegrationTask(BaseTask):
         current_time = analysis['actual_values'].index[-1]
         time_limit = current_time + timedelta(hours=time_limit_hours)
 
-        if abs(z_score) > entry_threshold:
-            is_short = z_score > 0
+        is_short = z_score > 0
 
-            entry_price = current_price  # TODO: shift or give tolerance to this price
+        # Calculate target and stop prices
+        if is_short:
+            entry_price = current_price * (1 + z_std * 0.25)
+            end_price = current_price * (1 - (z_score * z_std * beta))
+            limit_price = current_price * (1 + (stop_threshold * z_std * beta))
+            grid_direction = -1
+        else:  # long
+            entry_price = current_price * (1 - z_std * 0.25)
+            end_price = current_price * (1 + (abs(z_score) * z_std * beta))
+            limit_price = current_price * (1 - (stop_threshold * z_std * beta))
+            grid_direction = 1
 
-            # Calculate target and stop prices
-            if is_short:
-                end_price = current_price * (1 - (z_score * z_std * beta))
-                limit_price = current_price * (1 + (stop_threshold * z_std * beta))
-                grid_direction = -1
-            else:  # long
-                end_price = current_price * (1 + (abs(z_score) * z_std * beta))
-                limit_price = current_price * (1 - (stop_threshold * z_std * beta))
-                grid_direction = 1
+        # Generate grid levels
+        price_range = abs(end_price - entry_price)
+        grid_step = price_range / (grid_levels + 1)
+        grid_prices = [entry_price + (i * grid_step * grid_direction) for i in range(1, grid_levels + 1)]
 
-            # Generate grid levels
-            price_range = abs(end_price - entry_price)
-            grid_step = price_range / (grid_levels + 1)
-            grid_prices = [entry_price + (i * grid_step * grid_direction) for i in range(1, grid_levels + 1)]
-
-            grid = {
-                'side': 'short' if is_short else 'long',
-                'entry_price': entry_price,
-                'end_price': end_price,
-                'limit_price': limit_price,
-                'grid_prices': grid_prices,
-                'time_limit': time_limit,
-                'entry_z_score': z_score,
-                'target_z_score': 0,
-                'stop_z_score': z_score + (stop_threshold * (1 if is_short else -1)),
-                'grid_levels': grid_levels,
-                'grid_step': grid_step
-            }
-
-        else:  # No signal
-            grid = {
-                'side': 'both',
-                'entry_price': None,
-                'end_price': None,
-                'limit_price': None,
-                'grid_prices': [],
-                'time_limit': None,
-                'entry_z_score': z_score,
-                'target_z_score': None,
-                'stop_z_score': None,
-                'grid_levels': 0,
-                'grid_step': None
-            }
+        grid = {
+            'side': 'short' if is_short else 'long',
+            'entry_price': entry_price,
+            'end_price': end_price,
+            'limit_price': limit_price,
+            'grid_prices': grid_prices,
+            'time_limit': time_limit,
+            'entry_z_score': z_score,
+            'target_z_score': 0,
+            'stop_z_score': z_score + (stop_threshold * (1 if is_short else -1)),
+            'grid_levels': grid_levels,
+            'grid_step': grid_step
+        }
         return grid
 
     def analyze_pair_cointegration(self, y_col, x_col, interval: str = "15m"):
