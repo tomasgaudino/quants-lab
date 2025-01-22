@@ -122,13 +122,9 @@ class StatArbConfigGeneratorTask(BaseTask):
             results_df_2 = coint_results_df.merge(funding_rates_df, left_on=["base", "quote"], right_on=["pair1", "pair2"], how="inner")
             df = pd.concat([results_df_1, results_df_2])
 
-            # Explode the grid_base columns
-            df = pd.concat([
-                df.drop(['grid_base', 'grid_quote'], axis=1),
-                df['grid_base'].apply(pd.Series).add_prefix('base_'),
-                df['grid_quote'].apply(pd.Series).add_prefix('quote_')
-            ], axis=1)
-
+            df['cond'] = np.where(((df['quote'] == df['pair1']) & (df['rate_difference'] > 0)) | (
+                        (df['quote'] == df['pair2']) & (df['rate_difference'] < 0)), 1, 0)
+            df = df[df["cond"] == 1]
             # Generate configs
             all_configs = []
             for _, row in df.iterrows():
@@ -136,22 +132,22 @@ class StatArbConfigGeneratorTask(BaseTask):
                     "config": self.get_config_dict(
                         base=row["base"],
                         quote=row["quote"],
-                        base_start_price=row["base_start_price"],
-                        base_end_price=row["base_end_price"],
-                        base_limit_price=row["base_limit_price"],
-                        base_beta=row["base_beta"],
-                        quote_start_price=row["quote_start_price"],
-                        quote_end_price=row["quote_end_price"],
-                        quote_limit_price=row["quote_limit_price"],
-                        quote_beta=row["quote_beta"]
+                        base_start_price=row["grid_base"]["start_price"],
+                        base_end_price=row["grid_base"]["end_price"],
+                        base_limit_price=row["grid_base"]["limit_price"],
+                        base_beta=row["grid_base"]["beta"],
+                        quote_start_price=row["grid_quote"]["start_price"],
+                        quote_end_price=row["grid_quote"]["end_price"],
+                        quote_limit_price=row["grid_quote"]["limit_price"],
+                        quote_beta=row["grid_quote"]["beta"]
                     ),
                     "extra_info": {
                         "coint_value": row["coint_value"],
                         "rate_difference": row["rate_difference"],
                         "base_rate": row["rate1"],
                         "quote_rate": row["rate2"],
-                        "base_beta": row["base_beta"],
-                        "quote_beta": row["quote_beta"]
+                        "grid_base": row["grid_base"],
+                        "grid_quote": row["grid_quote"],
                     }
                 }
                 all_configs.append(record)
