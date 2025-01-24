@@ -298,18 +298,11 @@ class CointegrationTask(BaseTask):
         time_limit = current_time + timedelta(hours=time_limit_hours)
 
         is_short = z_score > 0
-
-        # Calculate target and stop prices
-        if is_short:
-            entry_price = current_price * (1 + (z_score * z_std * beta * 0.1))
-            end_price = current_price * (1 - (z_score * z_std * beta))
-            limit_price = current_price * (1 + (z_score * z_std * beta * 0.2))
-            grid_direction = -1
-        else:  # long
-            entry_price = current_price * (1 - (z_score * z_std * beta * 0.1))
-            end_price = current_price * (1 + (abs(z_score) * z_std * beta))
-            limit_price = current_price * (1 - (abs(z_score) * z_std * beta * 0.2))
-            grid_direction = 1
+        alpha = z_score * abs(z_std * beta)
+        entry_price = current_price * (1 + alpha * self.config["start_price_multiplier"])
+        end_price = current_price * (1 + alpha * self.config["end_price_multiplier"])
+        limit_price = current_price * (1 + alpha * self.config["limit_price_multiplier"])
+        grid_direction = -1 if is_short else 1
 
         # Generate grid levels
         price_range = abs(end_price - entry_price)
@@ -474,7 +467,10 @@ async def main():
         "entry_threshold": 1.5,
         "stop_threshold": 1.0,
         "grid_levels": 5,
-        "time_limit_hours": 24
+        "time_limit_hours": 24,
+        "start_price_multiplier": 0.1,
+        "limit_price_multiplier": 0.2,
+        "end_price_multiplier": 0.0,
     }
     task = CointegrationTask(name="cointegration_task",
                              frequency=timedelta(hours=1),
