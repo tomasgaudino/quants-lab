@@ -301,7 +301,7 @@ class CointegrationTask(BaseTask):
         time_limit = current_time + timedelta(hours=time_limit_hours)
 
         is_short = z_score > 0
-        alpha = z_score * abs(z_std * beta)
+        alpha = z_score * abs(beta)
         entry_price = current_price * (1 + alpha * self.config["start_price_multiplier"])
         end_price = current_price * (1 + alpha * self.config["end_price_multiplier"])
         limit_price = current_price * (1 + alpha * self.config["limit_price_multiplier"])
