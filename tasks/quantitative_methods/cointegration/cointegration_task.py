@@ -1,3 +1,4 @@
+import time
 from datetime import timedelta
 
 import numpy as np
@@ -84,6 +85,7 @@ class CointegrationTask(BaseTask):
 
     def analyze_trading_pairs(self, candles: List[Candles]):
         # Get the analysis DataFrame
+        now = time.time()
         results_df = self.analyze_multiple_pairs(candles)
 
         # Filter for cointegrated pairs
@@ -160,7 +162,8 @@ class CointegrationTask(BaseTask):
                     'risk_ratio': short_position['risk_ratio'],
                     'grid': short_position['grid']
                 },
-                'coint_value': float(coint_value)
+                'coint_value': float(coint_value),
+                'timestamp': now
             }
             pair_results.append(result)
 
