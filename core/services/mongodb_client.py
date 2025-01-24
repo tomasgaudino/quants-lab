@@ -15,7 +15,8 @@ class MongoDBClient:
             password: Optional[str] = None,
             host: Optional[str] = None,
             port: Optional[str] = None,
-            database: str = "mongodb"
+            database: str = "mongodb",
+            *args
     ):
         self.client = None
         self.db = None
