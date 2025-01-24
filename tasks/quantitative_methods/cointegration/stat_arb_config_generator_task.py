@@ -118,6 +118,8 @@ class StatArbConfigGeneratorTask(BaseTask):
             funding_rates_df = funding_rates_df[funding_rates_df["timestamp"] == funding_rates_df["timestamp"].max()]
             coint_results = await self.mongo_client.get_cointegration_results()
             coint_results_df = pd.DataFrame(coint_results)
+            coint_results_df = coint_results_df[coint_results_df["timestamp"] == coint_results_df["timestamp"].max()]
+            coint_results_df.drop("timestamp", inplace=True)
             results_df_1 = coint_results_df.merge(funding_rates_df, left_on=["quote", "base"], right_on=["pair1", "pair2"], how="inner")
             results_df_2 = coint_results_df.merge(funding_rates_df, left_on=["base", "quote"], right_on=["pair1", "pair2"], how="inner")
             df = pd.concat([results_df_1, results_df_2])
