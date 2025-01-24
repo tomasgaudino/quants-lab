@@ -16,7 +16,8 @@ class MongoDBClient:
             host: Optional[str] = None,
             port: Optional[str] = None,
             database: str = "mongodb",
-            *args
+            timescale_config: Optional[Dict[str, Any]] = None,
+            mongo_config: Optional[Dict[str, Any]] = None
     ):
         self.client = None
         self.db = None
