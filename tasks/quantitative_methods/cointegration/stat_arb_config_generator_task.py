@@ -1,10 +1,9 @@
 import asyncio
 import logging
+import os
+from dotenv import load_dotenv
 from datetime import timedelta
-from typing import Dict, Any
-
 import pandas as pd
-import json
 
 from core.services.mongodb_client import MongoDBClient
 from core.task_base import BaseTask
@@ -14,7 +13,7 @@ import numpy as np
 class StatArbConfigGeneratorTask(BaseTask):
     def __init__(self, name: str, frequency: str, config: dict):
         super().__init__(name, frequency, config)
-        self.mongo_client = MongoDBClient()
+        self.mongo_client = MongoDBClient(**config)
 
     async def initialize(self):
         await self.mongo_client.connect()
@@ -119,7 +118,7 @@ class StatArbConfigGeneratorTask(BaseTask):
             coint_results = await self.mongo_client.get_cointegration_results()
             coint_results_df = pd.DataFrame(coint_results)
             coint_results_df = coint_results_df[coint_results_df["timestamp"] == coint_results_df["timestamp"].max()]
-            coint_results_df.drop("timestamp", inplace=True)
+            coint_results_df.drop(columns=["timestamp"], inplace=True)
             results_df_1 = coint_results_df.merge(funding_rates_df, left_on=["quote", "base"], right_on=["pair1", "pair2"], how="inner")
             results_df_2 = coint_results_df.merge(funding_rates_df, left_on=["base", "quote"], right_on=["pair1", "pair2"], how="inner")
             df = pd.concat([results_df_1, results_df_2])
@@ -164,7 +163,15 @@ class StatArbConfigGeneratorTask(BaseTask):
 
 
 async def main():
-    task = StatArbConfigGeneratorTask(name="golden_task", frequency=timedelta(hours=12), config={})
+    load_dotenv()
+    config = {
+        "username": os.getenv('MONGO_INITDB_ROOT_USERNAME', "admin"),
+        "password": os.getenv('MONGO_INITDB_ROOT_PASSWORD', "admin"),
+        "host": os.getenv('MONGO_HOST', 'localhost'),
+        "port": os.getenv('MONGO_PORT', 27017),
+        "database": "quants_lab"
+    }
+    task = StatArbConfigGeneratorTask(name="stat_arb_config_generator_task", frequency=timedelta(hours=12), config=config)
     await task.execute()
 
 if __name__ == "__main__":
