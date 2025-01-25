@@ -112,6 +112,7 @@ class StatArbConfigGeneratorTask(BaseTask):
         """
         try:
             await self.initialize()
+            now = time.time()
             funding_rates = await self.mongo_client.get_funding_rates_processed()
             funding_rates_df = pd.DataFrame(funding_rates)
             funding_rates_df = funding_rates_df[funding_rates_df["timestamp"] == funding_rates_df["timestamp"].max()]
@@ -147,8 +148,11 @@ class StatArbConfigGeneratorTask(BaseTask):
                         "rate_difference": row["rate_difference"],
                         "base_rate": row["rate1"],
                         "quote_rate": row["rate2"],
+                        "base_pair": row["pair1"],
+                        "quote_pair": row["pair2"],
                         "grid_base": row["grid_base"],
                         "grid_quote": row["grid_quote"],
+                        "timestamp": now
                     }
                 }
                 all_configs.append(record)
