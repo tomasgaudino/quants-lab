@@ -303,7 +303,7 @@ class CointegrationTask(BaseTask):
         is_short = z_score > 0
         alpha = z_score * abs(beta)
         entry_price = current_price * (1 + alpha * self.config["start_price_multiplier"])
-        end_price = current_price * (1 + alpha * self.config["end_price_multiplier"])
+        end_price = current_price * (1 - alpha * self.config["end_price_multiplier"])
         limit_price = current_price * (1 + alpha * self.config["limit_price_multiplier"])
         grid_direction = -1 if is_short else 1
 
