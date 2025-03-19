@@ -101,15 +101,14 @@ async def get_execution_candles(performance_df: pd.DataFrame):
     return candles
 
 
-async def plot_candles_with_global_pnl_chart(df: pd.DataFrame, side: int = 1):
+async def plot_candles_with_global_pnl_chart(df: pd.DataFrame, side: int = 1, top_value: float = None, bottom_value: float = None):
     candles = await get_execution_candles(df)
-    # Create a subplot with 2 rows
+    
     side = "Long" if side == 1 else "Short"
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05,
                         subplot_titles=(f"{side} OHLC Chart with Break-Even Levels", "PnL and Fees Over Time"))
 
     # ---------------------- FIG 1: Candlestick Chart & Break Even ----------------------
-    # OHLC Candlestick Chart
     fig.add_trace(go.Candlestick(name="OHLC",
                                  x=candles.data.index,
                                  open=candles.data["open"],
@@ -118,7 +117,6 @@ async def plot_candles_with_global_pnl_chart(df: pd.DataFrame, side: int = 1):
                                  close=candles.data["close"]),
                   row=1, col=1)
 
-    # Break Even Open
     fig.add_trace(go.Scatter(name="Break Even Open",
                              x=df["datetime"],
                              y=df["break_even_open"],
@@ -126,7 +124,6 @@ async def plot_candles_with_global_pnl_chart(df: pd.DataFrame, side: int = 1):
                              line_shape="hv"),
                   row=1, col=1)
 
-    # Break Even Close
     fig.add_trace(go.Scatter(name="Break Even Close",
                              x=df["datetime"],
                              y=df["break_even_close"],
@@ -134,7 +131,6 @@ async def plot_candles_with_global_pnl_chart(df: pd.DataFrame, side: int = 1):
                              line_shape="hv"),
                   row=1, col=1)
 
-    # Markers for trade positions (buy/sell signals)
     fig.add_trace(go.Scatter(
         x=pd.to_datetime(df["timestamp"], unit="s"),
         y=df["price"],
@@ -148,41 +144,38 @@ async def plot_candles_with_global_pnl_chart(df: pd.DataFrame, side: int = 1):
         row=1, col=1
     )
 
+    # **NEW: Horizontal lines for top & bottom values**
+    if top_value is not None:
+        fig.add_trace(go.Scatter(
+            x=[df["datetime"].min(), df["datetime"].max()],
+            y=[top_value, top_value],
+            mode="lines",
+            line=dict(color="blue", width=2, dash="dash"),
+            name="Grid Top"
+        ), row=1, col=1)
+
+    if bottom_value is not None:
+        fig.add_trace(go.Scatter(
+            x=[df["datetime"].min(), df["datetime"].max()],
+            y=[bottom_value, bottom_value],
+            mode="lines",
+            line=dict(color="blue", width=2, dash="dash"),
+            name="Grid Bottom"
+        ), row=1, col=1)
+
     # ---------------------- FIG 2: PnL and Fees ----------------------
-    # Realized PnL
-    fig.add_trace(go.Scatter(x=df.datetime,
-                             y=df.realized_pnl,
-                             name="Realized PnL"),
-                  row=2, col=1)
-
-    # Unrealized PnL
-    fig.add_trace(go.Scatter(x=df.datetime,
-                             y=df.unrealized_pnl,
-                             name="Unrealized PnL"),
-                  row=2, col=1)
-
-    # Global PnL (filled area)
-    fig.add_trace(go.Scatter(x=df.datetime,
-                             y=df.global_pnl,
-                             line_shape="hv",
-                             fill="tozeroy",
-                             name="Global PnL"),
-                  row=2, col=1)
-
-    # Cumulative Fee Paid
-    fig.add_trace(go.Scatter(x=df.datetime,
-                             y=df.cumulative_fee_paid_quote.cumsum(),
-                             line_shape="hv",
-                             name="Cumulative Fee"),
-                  row=2, col=1)
+    fig.add_trace(go.Scatter(x=df.datetime, y=df.realized_pnl, name="Realized PnL"), row=2, col=1)
+    fig.add_trace(go.Scatter(x=df.datetime, y=df.unrealized_pnl, name="Unrealized PnL"), row=2, col=1)
+    fig.add_trace(go.Scatter(x=df.datetime, y=df.global_pnl, line_shape="hv", fill="tozeroy", name="Global PnL"), row=2, col=1)
+    fig.add_trace(go.Scatter(x=df.datetime, y=df.cumulative_fee_paid_quote.cumsum(), line_shape="hv", name="Cumulative Fee"), row=2, col=1)
 
     # ---------------------- Layout Adjustments ----------------------
     fig.update_layout(
         height=1000,
-        xaxis_rangeslider_visible=False,  # Remove range slider from first plot
+        xaxis_rangeslider_visible=False,
         showlegend=True,
         title_text="Trading Performance Overview",
-        xaxis2=dict(title="Time")  # Label x-axis only for second row
+        xaxis2=dict(title="Time")
     )
 
     return fig
@@ -227,17 +220,17 @@ async def create_coint_figure(connector_instance,
 
     # Add horizontal lines for the base market
     fig.add_hline(
-        y=controller_config["grid_config_base"]["start_price"],
+        y=controller_config["start_price"],
         row=1, col=1,
         line=dict(color="green", width=2)
     )
     fig.add_hline(
-        y=controller_config["grid_config_base"]["end_price"],
+        y=controller_config["end_price"],
         row=1, col=1,
         line=dict(color="green", width=2)
     )
     fig.add_hline(
-        y=controller_config["grid_config_base"]["limit_price"],
+        y=controller_config["limit_price"],
         row=1, col=1,
         line=dict(color="green", dash="dash", width=2)
     )
@@ -307,8 +300,8 @@ async def apply_filters(connector_instance,
         return False
 
     # Calculate base grid metrics
-    base_start_price = config["grid_config_base"]["start_price"]
-    base_end_price = config["grid_config_base"]["end_price"]
+    base_start_price = config["start_price"]
+    base_end_price = config["end_price"]
     base_executor_prices, base_step = await get_executor_prices(config, connector_instance=connector_instance)
     base_level_amount_quote = config["total_amount_quote"] / len(base_executor_prices)
 
@@ -316,8 +309,8 @@ async def apply_filters(connector_instance,
     base_entry_price_distance_from_start = (base_entry_price / base_start_price - 1) / base_grid_range_pct
 
     # Calculate quote grid metrics
-    quote_start_price = config["grid_config_quote"]["start_price"]
-    quote_end_price = config["grid_config_quote"]["end_price"]
+    quote_start_price = config["start_price"]
+    quote_end_price = config["end_price"]
     quote_executor_prices, quote_step = await get_executor_prices(config, side="short", connector_instance=connector_instance)
     quote_level_amount_quote = config["total_amount_quote"] / len(quote_executor_prices)
 
@@ -352,16 +345,16 @@ def get_grid_executor_config(controller_config_dict: Dict[str, Any], side: str =
                               leverage=controller_config_dict["leverage"],
                               connector_name=controller_config_dict["connector_name"],
                               trading_pair=controller_config_dict["base_trading_pair"],
-                              start_price=controller_config_dict[side_config]["start_price"],
-                              end_price=controller_config_dict[side_config]["end_price"],
-                              limit_price=controller_config_dict[side_config]["limit_price"],
+                              start_price=controller_config_dict["start_price"],
+                              end_price=controller_config_dict["end_price"],
+                              limit_price=controller_config_dict["limit_price"],
                               side=1 if side == "long" else 2,
                               total_amount_quote=controller_config_dict["total_amount_quote"] / 2,
                               min_spread_between_orders=controller_config_dict["min_spread_between_orders"],
-                              min_order_amount_quote=controller_config_dict[side_config]["min_order_amount_quote"],
+                              min_order_amount_quote=controller_config_dict["min_order_amount_quote"],
                               max_open_orders=controller_config_dict["max_open_orders"],
                               max_orders_per_batch=controller_config_dict["max_orders_per_batch"],
-                              order_frequency=controller_config_dict[side_config]["order_frequency"],
+                              order_frequency=controller_config_dict["order_frequency"],
                               activation_bounds=controller_config_dict["activation_bounds"],
                               triple_barrier_config=TripleBarrierConfig(
                                   stop_loss=controller_config_dict["triple_barrier_config"]["stop_loss"],
