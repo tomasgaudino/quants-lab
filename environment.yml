@@ -8,7 +8,7 @@ dependencies:
   - libcxx
   - pip
   - pip:
-      - hummingbot
+      - hummingbot==20250220
       - numpy==1.26.4
       - plotly
       - pycoingecko
@@ -34,6 +34,8 @@ dependencies:
       - psycopg2-binary
       - pyarrow
       - pandas
+      - dtaidistance
+      - pyinform
       - motor>=3.3.2
       - pandas-ta>=0.3.14b
       - statsmodels>=0.14.1
