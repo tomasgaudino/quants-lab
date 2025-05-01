@@ -49,20 +49,17 @@ class StatArbTradingSession(TradingSession):
 
 
 class StatArbPerformanceReport(PerformanceReport):
-    def __init__(self, mongo_uri: str, database: str, from_timestamp: float, to_timestamp: float,
-                 root_path: str, backend_host: str, backend_user: str, backend_data_path: str, owner: str):
-        super().__init__(mongo_uri, database, from_timestamp, to_timestamp, root_path, backend_host,
-                         backend_user, backend_data_path, owner)
+    def __init__(self, mongo_uri: str, database: str, root_path: str, owner: str, controller_names: List[str],
+                 from_timestamp: int = None, to_timestamp: int = None):
+        super().__init__(mongo_uri, database, root_path, owner, controller_names)
+        self.from_timestamp = from_timestamp
+        self.to_timestamp = to_timestamp
         self.cointegration_df = pd.DataFrame()
         self.cointegration_df_filtered = pd.DataFrame()
 
-    @property
-    def controller_name(self):
-        return "stat_arb"
-
     async def initialize(self, fetch_dbs: bool = False):
-        await super().initialize(fetch_dbs=fetch_dbs)
-        self.cointegration_df = await self.get_cointegration_df()
+        await super().initialize()
+        # self.cointegration_df = await self.get_cointegration_df()
 
     async def get_cointegration_df(self):
         query = {
@@ -118,26 +115,26 @@ class StatArbPerformanceReport(PerformanceReport):
 
     async def build_trading_sessions(self) -> List[StatArbTradingSession]:
         trading_sessions = []
-        for controller in self.all_controllers:
-            controller_id = controller["id"]
-            session_id = controller["session_id"]
+        controllers_ids = self.executors_df["controller_id"].unique()
+        controllers_df = self.controllers_df.copy()
+        for controller_id in controllers_ids:
+            trades_df = self.trades_df[self.trades_df["controller_id"] == controller_id].copy()
+            db_name = trades_df["database_id"].iloc[-1]
             long_metrics = short_metrics = {}
             try:
-                controller_config = controller["config"]
+                controller_config = controllers_df[controllers_df["controller_id"] == controller_id]["config"].iloc[-1]
                 controller_config["id"] = controller_id
-                long_df = self.calculate_performance_fields(trades_df=self.all_trades_df,
-                                                            controller_id=controller_id,
-                                                            side=1)
-                short_df = self.calculate_performance_fields(trades_df=self.all_trades_df,
-                                                             controller_id=controller_id,
-                                                             side=2)
+                long_df = self.calculate_performance_fields(trades_df=trades_df, side=1)
+                short_df = self.calculate_performance_fields(trades_df=trades_df, side=2)
 
                 if len(long_df) > 0:
-                    long_metrics = self.summarize_performance_metrics(long_df, controller_config, side=1)
+                    long_metrics = self.summarize_performance_metrics(long_df, side=1)
                 if len(short_df) > 0:
-                    short_metrics = self.summarize_performance_metrics(short_df, controller_config, side=2)
+                    short_metrics = self.summarize_performance_metrics(short_df, side=2)
+
                 start_timestamp = self.get_valid_timestamp(long_df, short_df, how="min")
                 end_timestamp = self.get_valid_timestamp(long_df, short_df, how="max")
+
                 coint_info = self.get_cointegration_info(controller_config, start_timestamp)
                 performance_metrics = {
                     "long_df": long_df,
@@ -147,7 +144,7 @@ class StatArbPerformanceReport(PerformanceReport):
                     "coint_info": coint_info
                 }
                 trading_sessions.append(StatArbTradingSession(session_id=session_id,
-                                                              db_name=controller["db_name"],
+                                                              db_name=db_name,
                                                               start_timestamp=start_timestamp,
                                                               end_timestamp=end_timestamp,
                                                               controller_config=controller_config,
@@ -155,6 +152,7 @@ class StatArbPerformanceReport(PerformanceReport):
             except Exception as e:
                 print(f"Error generating trading session for {controller_id}: {e}")
                 continue
+        print(f"Updated trading sessions: {len(trading_sessions)}")
         self.trading_sessions = trading_sessions
         return trading_sessions
 
@@ -189,7 +187,7 @@ class StatArbPerformanceReport(PerformanceReport):
                 "start_timestamp": start_timestamp,
                 "end_timestamp": end_timestamp,
                 "owner": self.owner,
-                "controller_name": self.controller_name,
+                "controller_names": self.controller_names,
                 "trading_session": session.to_serializable_dict(),
                 "status": status
             }
