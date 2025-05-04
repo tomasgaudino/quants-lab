@@ -1,0 +1,60 @@
+body {
+    background-color: #121212;
+    color: #f5f5f5;
+    font-family: 'Open Sans', sans-serif;
+}
+
+.sidebar {
+    background-color: #1e1e1e;
+    padding: 20px;
+    height: 100vh;
+    color: #f5f5f5;
+}
+
+.sidebar h4 {
+    color: #ffb300;
+}
+
+.card {
+    background-color: #1e1e1e;
+    border: none;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+    color: #f5f5f5;
+    text-align: center;
+}
+
+.card h5 {
+    color: #ffb300;
+}
+
+.card h2 {
+    color: #ffffff;
+    transition: all 0.5s ease-in-out;
+}
+
+.card:hover h2 {
+    transform: scale(1.15);
+}
+
+.dash-graph .js-plotly-plot {
+    background-color: #1e1e1e !important;
+}
+
+h4, h5 {
+    color: #ffb300;
+}
+
+button, .btn-primary {
+    background-color: #ffb300 !important;
+    border: none !important;
+    color: #121212 !important;
+}
+
+button:hover {
+    background-color: #ffa500 !important;
+}
+
+.Select-control, .Select-menu-outer {
+    background-color: #1e1e1e;
+    color: #f5f5f5;
+}

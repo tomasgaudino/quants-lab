@@ -1,0 +1,172 @@
+/* ---------- Global ---------- */
+body {
+    background-color: #1C1917;
+    color: #ffffff;
+    font-family: 'Montserrat', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+/* ---------- Headings ---------- */
+h1, h2, h3, h4, h5, p {
+    color: #ffffff;
+    font-family: 'Montserrat', sans-serif;
+    margin: 0;
+    padding: 5px 0;
+}
+
+/* ---------- Sections ---------- */
+div {
+    box-sizing: border-box;
+}
+
+.section {
+    background-color: #242120;
+    margin-bottom: 15px;
+    padding: 15px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.6);
+    border-radius: 10px;
+}
+
+/* ---------- Dropdown ---------- */
+.Select-control,
+.dash-dropdown {
+    margin-top: 10px;
+    background-color: #3e3e4e !important;
+    color: #ffffff !important;
+    border: 0 solid #555 !important;
+    border-radius: 5px;
+}
+
+.Select-menu-outer {
+    background-color: #3e3e4e !important;
+    color: #ffffff !important;
+}
+
+/* ---------- Tabs ---------- */
+.tab-container {
+    margin-bottom: 15px;
+}
+
+.custom-tab .tab {
+    background-color: #1C1917 !important;
+    color: #ffffff !important;
+    border: none !important;
+    border-bottom: 2px solid gray !important;
+}
+
+.custom-tab .tab--selected {
+    font-weight: bold;
+    background-color: #1C1917 !important;
+    border-bottom: 2px solid #e4ff00 !important;
+}
+
+/* Hover effect */
+.custom-tab .tab:hover {
+    background-color: #0909e1;
+    cursor: pointer;
+}
+
+/* ---------- Graphs ---------- */
+.chart-container {
+    max-width: 100%;
+    overflow: hidden;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+.dash-graph {
+    background-color: #242120 !important;
+    border-radius: 0;
+    padding: 5px;
+    max-width: 100%;
+}
+
+/* ---------- Metrics ---------- */
+.metric-box {
+    text-align: center;
+    padding: 10px;
+    background-color: #3e3e4e;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    margin: 5px;
+}
+
+.metric-title {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.metric-value {
+    font-size: 18px;
+    font-weight: bold;
+    color: #4cd137;
+}
+
+/* ---------- Scrollbars ---------- */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #2e2e3e;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #777;
+}
+
+/* ---------- Print-specific adjustments ---------- */
+@media print {
+    .chart-container {
+        max-width: 700px;
+        margin: 0 auto;
+    }
+    .dash-graph, .js-plotly-plot {
+        max-width: 100% !important;
+        height: auto !important;
+    }
+    body {
+        -webkit-print-color-adjust: exact;
+    }
+}
+
+.metric-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.metric-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0 10px;
+}
+
+.legend {
+    font-size: 1em;
+    padding-right: 10px;
+    white-space: nowrap;
+}
+
+.value {
+    font-size: 1.2em;
+    font-weight: bold;
+    padding-left: 10px;
+    white-space: nowrap;
+}
+
+.separator {
+    width: 1px;
+    background-color: rgba(255, 255, 255, 0.3);
+    height: 60%;
+    margin: 0 10px;
+}
