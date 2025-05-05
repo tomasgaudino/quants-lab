@@ -1,8 +1,10 @@
-from dash import Dash, html, Output, Input
+from dash import Dash, html
 
-from core.performance.dash.layout import root_layout, global_layout, detail_layout
+from core.performance.dash.callbacks import register_callbacks
+from core.performance.dash.layout import root_layout
 
-app = Dash(__name__)
+
+app = Dash(__name__, suppress_callback_exceptions=True)
 
 app.index_string = '''
 <!DOCTYPE html>
@@ -37,18 +39,7 @@ app.layout = html.Div(
         'marginTop': '20px'
     })
 
-
-@app.callback(
-    Output('tab-content', 'children'),
-    Input('main-tabs', 'value')
-)
-def render_content(tab):
-    if tab == 'global-data-tab':
-        return global_layout
-    elif tab == 'explore-tab':
-        return detail_layout
-    else:
-        return html.Div("Tab not found")
+register_callbacks(app)
 
 
 if __name__ == '__main__':

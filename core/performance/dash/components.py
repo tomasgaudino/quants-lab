@@ -1,5 +1,8 @@
 from typing import Any, Dict, List
 
+import pandas as pd
+import plotly.graph_objects as go
+
 from dash import html, dcc
 
 
@@ -29,7 +32,11 @@ def section_metric(legend: str, value: Any) -> html.Div:
     return component
 
 
-def plotly_chart(data: List[Dict[str, Any]], title: str, height: int = 400, dark: bool = True) -> html.Div:
+def plotly_scatter(data: List[Dict[str, Any]],
+                   title: str,
+                   height: int = 400,
+                   dark: bool = True,
+                   static_plot: bool = True) -> html.Div:
     if dark:
         layout = {
             'template': 'plotly_dark',
@@ -44,11 +51,11 @@ def plotly_chart(data: List[Dict[str, Any]], title: str, height: int = 400, dark
     else:
         layout = {}
     sample_chart = dcc.Graph(
-        config={"staticPlot": True},
+        config={"staticPlot": static_plot},
         figure={'data': data, 'layout': layout},
         className='dash-graph',
-        style={'height': '400px', 'width': '100%'}
+        style={'height': f'{height}px', 'width': '100%'}
     )
 
-    component = html.Div(sample_chart, style={'flex': '1', 'minWidth': '0', 'height': '400px'})
+    component = html.Div(sample_chart, style={'flex': '1', 'minWidth': '0', 'height': '100%'})
     return component

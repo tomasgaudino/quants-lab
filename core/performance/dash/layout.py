@@ -1,20 +1,31 @@
 import os
 import json
+
+import pandas as pd
 from dotenv import load_dotenv
 from dash import html, dcc
 import core.performance.dash.components as components
-import dash_daq as daq
 
 load_dotenv()
 servers = json.loads(os.getenv("BACKEND_API_SERVERS", '{"main": "localhost"}'))
 
 # Root layout
 root_layout = html.Div(children=[
-    html.H1(children="Welcome back"),
+    html.Div(
+        style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center'},
+        children=[
+            html.H1("Welcome back", style={'textAlign': 'left'}),
+            html.A(
+                html.Img(src="assets/hummingbot_logo.png", style={'height': '160px'}),
+                href="https://hummingbot.org/",
+                target="_blank"  # open in new tab
+            )
+        ]
+    ),
     html.Div(children="Here is your trading overview"),
     html.Br(),
     html.Div(children=[
-        html.Label("Server"),  # this adds the legend over the dropdown
+        html.Label("Server"),
         dcc.Dropdown(
             options=[{'label': s, 'value': s} for s in servers.keys()],
             multi=False,
@@ -43,7 +54,7 @@ global_layout = html.Div(style={"padding": "15px"}, children=[
         html.Div(
             style={'display': 'flex', 'alignItems': 'center', 'width': '100%'},
             children=[
-                html.H3("Active / Archived Instances", style={'margin': '0', 'padding-right': '20px', 'whiteSpace': 'nowrap'}),
+                html.H3("Hummingbot Instances", style={'margin': '0', 'padding-right': '20px', 'whiteSpace': 'nowrap'}),
                 html.Div(
                     style={'display': 'flex', 'flex': '1'},
                     children=[
@@ -67,7 +78,7 @@ global_layout = html.Div(style={"padding": "15px"}, children=[
                 components.section_metric("Last 7d", f"$ {0.0:.2f}"),
                 components.section_metric("Last 30d", f"$ {0.0:.2f}"),
             ], style={'width': '200px'}),
-            components.plotly_chart(sample_data, "PnL Analysis")
+            components.plotly_scatter(sample_data, "PnL Analysis")
         ])
     ]),
 
@@ -81,12 +92,60 @@ global_layout = html.Div(style={"padding": "15px"}, children=[
                 components.section_metric("Last 7d", f"$ {0.0:.2f}"),
                 components.section_metric("Last 30d", f"$ {0.0:.2f}"),
             ], style={'width': '200px'}),
-            components.plotly_chart(sample_data, "Volume Analysis")
+            components.plotly_scatter(sample_data, "Volume Analysis")
         ])
     ]),
 ])
 
-# Detail layout
-detail_layout = html.Div(className='section', children=[
-    html.H5(children="WIP"),
-])
+df_summary = pd.read_csv("assets/df_summary.csv")
+initial_path = ["controller_name", "connector_name", "trading_pair", "database_id", "controller_id"]
+
+detail_layout = html.Div(children=[
+    html.H2("🎯 Navigate your own path"),
+    html.Br(),
+    html.Div(className="section", children=[
+        html.Label("Treemap hierarchy"),
+        dcc.Dropdown(
+            id='path-dropdown',
+            options=[{'label': col, 'value': col} for col in df_summary.columns],
+            value=initial_path,
+            multi=True
+        ),
+    ]),
+    html.Div(
+        style={"display": "flex", "flex": 1, "width": "100%"},
+        children=[
+            html.Div(
+                className='section',
+                style={"width": "50%", "margin": "5px", "display": "flex", "flexDirection": "column"},
+                children=[
+                    html.H5(children="Trading Universe"),
+                    dcc.Loading(
+                        id="loading-graph",
+                        type="default",  # options: 'default', 'circle', 'dot', 'cube'
+                        children=dcc.Graph(id='treemap-graph')
+                    )
+                ]),
+            html.Div(
+                style={"width": "50%",},
+                children=[
+                    html.Div(
+                        className='section',
+                        style={"flex": 1, "margin": "5px", "display": "flex", "flexDirection": "column"},
+                        children=[
+                            html.H5(children="Global PnL"),
+                            components.plotly_scatter(sample_data, "Global PnL", height=400),
+                        ]),
+                    html.Div(
+                        className='section',
+                        style={"flex": 1, "margin": "5px", "display": "flex", "flexDirection": "column"},
+                        children=[
+                            html.H5(children="Global Volume"),
+                            components.plotly_scatter(sample_data, "Total Volume", height=400),
+                        ]),
+                ],
+            ),
+        ]
+    )]
+)
+
