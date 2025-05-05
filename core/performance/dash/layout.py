@@ -5,6 +5,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from dash import html, dcc
 import core.performance.dash.components as components
+from core.performance.dash.components import echart_candlestick
 
 load_dotenv()
 servers = json.loads(os.getenv("BACKEND_API_SERVERS", '{"main": "localhost"}'))
@@ -112,6 +113,26 @@ detail_layout = html.Div(children=[
             multi=True
         ),
     ]),
+    html.Div(style={'display': 'flex', 'width': '100%'}, className="section", children=[
+        html.Div(
+            children=[
+                html.Div(components.section_metric("PnL", f"$ {0.0:.2f}"), style={'flex': '1'}),
+                html.Div(components.section_metric("Volume", f"$ {0.0:.2f}"), style={'flex': '1'}),
+                html.Div(components.section_metric("Total Trades", f"{334}"), style={'flex': '1'}),
+                html.Div(components.section_metric("Max Draw Down", f"{32.0:.2f}%"), style={'flex': '1'}),
+                html.Div(components.section_metric("Sharpe Ratio", f"{1.03:.2f}"), style={'flex': '1'}),
+                html.Div(components.section_metric("Total Duration", f"17d 4h 30m"), style={'flex': '1'}),
+                html.Div(components.section_metric("Date Range", f"2025-04-03 -> 2025-04-20"), style={'flex': '1'}),
+            ],
+            style={
+                'width': '100%',
+                'display': 'flex',
+                'justifyContent': 'space-between',
+                'gap': '10px'  # Optional: controls spacing between items
+            }
+        )
+    ]),
+
     html.Div(
         style={"display": "flex", "flex": 1, "width": "100%"},
         children=[
@@ -146,6 +167,23 @@ detail_layout = html.Div(children=[
                 ],
             ),
         ]
-    )]
-)
+    ),
+    html.Div(
+        className="section",
+        children=echart_candlestick()
+    ),
+    html.Div(
+        className="section",
+        children=[
+            dcc.Tabs(className='custom-tab', id='detail-tabs', value='controllers', children=[
+                dcc.Tab(label='Controllers', value='controllers'),
+                dcc.Tab(label='Executors', value='executors'),
+                dcc.Tab(label='Trades', value='trades'),
+            ]),
+            html.Div(
+                id="detail-tabs-content",
+            )
+        ]
+    )
+])
 
