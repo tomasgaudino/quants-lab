@@ -3,8 +3,10 @@ from typing import Any, Dict, List
 
 import random
 import dash_echarts
+import numpy as np
+import pandas as pd
 
-from dash import html, dcc
+from dash import html, dcc, dash_table
 
 
 def instance_metric(legend: str, value: Any) -> html.Div:
@@ -186,4 +188,79 @@ def echart_candlestick():
             style={"height": "600px", "flex": 1, "width": "100%"},
         ),
     ])
+    return component
+
+
+def controllers_table():
+    css = [
+        {'selector': '.dash-spreadsheet',
+         'rule': 'background-color: #1C1917; color: #FFFFFF; font-family: Segoe UI, Tahoma, Geneva, Verdana, sans-serif; border: none;'},
+        {'selector': '.dash-header',
+         'rule': 'background-color: #1C1917; color: #FFFFFF; font-weight: bold; border-bottom: 1px solid #444444;'},
+        {'selector': '.dash-cell',
+         'rule': 'background-color: #1C1917; color: #FFFFFF; border-bottom: 1px solid #444444; padding: 10px; text-align: center;'},
+    ]
+    style_cell = {
+        'padding': '10px',
+        'textAlign': 'center',
+    }
+    style_table = {'overflowX': 'auto'}
+
+    controllers_df = pd.DataFrame([
+        {'controller_id': 'binance-perpetual||MELANIA-USDT||IP-USDT||2025||isoweek11_3-0140',
+         'timestamp': 1741743981.0634391,
+         'controller_type': 'generic',
+         'database_id': 'binance_perpetual-2025-11-3-0140-2025.sqlite',
+         'controller_name': 'stat_arb',
+         'global_pnl': np.random.randn(),
+         'total_volume': np.random.randint(10, 10000)},
+        {'controller_id': 'binance-perpetual||WLD-USDT||TST-USDT||2025||isoweek11_7-1140',
+         'timestamp': 1742125773.6928542,
+         'controller_type': 'generic',
+         'database_id': 'binance_perpetual-2025-11-7-1140-2025.sqlite',
+         'controller_name': 'stat_arb',
+         'global_pnl': np.random.randn(),
+         'total_volume': np.random.randint(10, 10000)},
+        {'controller_id': 'binance-perpetual||INJ-USDT||POPCAT-USDT||2025||isoweek11_4-1740',
+         'timestamp': 1741887635.0314603,
+         'controller_type': 'generic',
+         'database_id': 'binance_perpetual-2025-11-4-1740-2025.sqlite',
+         'controller_name': 'stat_arb',
+         'global_pnl': np.random.randn(),
+         'total_volume': np.random.randint(10, 10000)},
+        {'controller_id': 'binance-perpetual||S-USDT||WAL-USDT||2025||isoweek16_2-1420',
+         'timestamp': 1744726847.7603877,
+         'controller_type': 'generic',
+         'database_id': 'binance_perpetual-2025-16-2-1420-2025.sqlite',
+         'controller_name': 'stat_arb',
+         'global_pnl': np.random.randn(),
+         'total_volume': np.random.randint(10, 10000)},
+        {'controller_id': 'binance-perpetual||AUCTION-USDT||IP-USDT||2025||isoweek16_2-1420',
+         'timestamp': 1744726847.7887366,
+         'controller_type': 'generic',
+         'database_id': 'binance_perpetual-2025-16-2-1420-2025.sqlite',
+         'controller_name': 'stat_arb',
+         'global_pnl': np.random.randn(),
+         'total_volume': np.random.randint(10, 10000)}]
+    )
+    table = dash_table.DataTable(
+            id='controllers-table',
+            data=controllers_df.to_dict('records'),
+            columns=[{'name': i, 'id': i} for i in controllers_df.columns],
+            css=css,
+            style_table=style_table,
+            style_cell=style_cell,
+            style_data_conditional=[
+                {
+                    'if': {'filter_query': '{global_pnl} < 0'},
+                    'color': 'red',
+                },
+                {
+                    'if': {'filter_query': '{global_pnl} >= 0'},
+                    'color': 'lightgreen',
+                },
+            ],
+        )
+
+    component = html.Div(id="controllers-table", children=table)
     return component

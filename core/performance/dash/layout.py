@@ -168,6 +168,11 @@ detail_layout = html.Div(children=[
             ),
         ]
     ),
+
+    html.Div(
+        className="section",
+        children=[components.controllers_table()]
+    ),
     html.Div(
         className="section",
         children=echart_candlestick()
@@ -175,8 +180,7 @@ detail_layout = html.Div(children=[
     html.Div(
         className="section",
         children=[
-            dcc.Tabs(className='custom-tab', id='detail-tabs', value='controllers', children=[
-                dcc.Tab(label='Controllers', value='controllers'),
+            dcc.Tabs(className='custom-tab', id='detail-tabs', value='executors', children=[
                 dcc.Tab(label='Executors', value='executors'),
                 dcc.Tab(label='Trades', value='trades'),
             ]),
@@ -184,6 +188,6 @@ detail_layout = html.Div(children=[
                 id="detail-tabs-content",
             )
         ]
-    )
+    ),
 ])
 
