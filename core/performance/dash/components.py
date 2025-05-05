@@ -1,8 +1,8 @@
 from typing import Any, Dict, List
 
+
+import random
 import dash_echarts
-import pandas as pd
-import plotly.graph_objects as go
 
 from dash import html, dcc
 
@@ -61,10 +61,6 @@ def plotly_scatter(data: List[Dict[str, Any]],
     component = html.Div(sample_chart, style={'flex': '1', 'minWidth': '0', 'height': '100%'})
     return component
 
-
-import random
-from dash import html
-import dash_echarts
 
 def echart_candlestick():
     # Raw data
@@ -191,6 +187,3 @@ def echart_candlestick():
         ),
     ])
     return component
-
-
-
