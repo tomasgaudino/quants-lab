@@ -11,9 +11,7 @@ import asyncio
 import os
 from typing import List, Dict, Any, Tuple
 
-from statsmodels.tsa.stattools import coint, grangercausalitytests
-from pyinform.transferentropy import transfer_entropy
-from dtaidistance import dtw
+from statsmodels.tsa.stattools import coint
 
 from core.data_sources import CLOBDataSource
 from core.data_structures.candles import Candles
@@ -175,9 +173,12 @@ class CointegrationV2Task(BaseTask):
                 for cut_value in range(0, self.config["max_lookback_steps"], self.config["lookback_step"]):
                     close1 = candle1.data.close.iloc[cut_value:].pct_change().add(1).cumprod().dropna()
                     close2 = candle2.data.close.iloc[cut_value:].pct_change().add(1).cumprod().dropna()
-                    cross_corr = self.cross_correlation_function(pair1, pair2, close1, close2, max_lag=6)
-                    # dtw_dist = self.dtw_distance_analysis(pair1, pair2, close1, close2)
-                    dtw_dist = {}
+                    if self.config.get("calculate_dominance", False):
+                        cross_corr = self.cross_correlation_function(pair1, pair2, close1, close2, max_lag=6)
+                        dtw_dist = self.dtw_distance_analysis(pair1, pair2, close1, close2)
+                    else:
+                        cross_corr = {}
+                        dtw_dist = {}
 
                     # Analyze both directions
                     result1 = self._analyze_pair(pair1, pair2, close1, close2, cross_corr, dtw_dist, interval)
@@ -191,9 +192,12 @@ class CointegrationV2Task(BaseTask):
     def _analyze_pair(self, pair1, pair2, close1, close2, cross_corr, dtw_dist, interval: str = "15m"):
         try:
             # One-direction dominance
-            granger = self.granger_causality(pair1, pair2, close1, close2, max_lag=6)
-            entropy = self.transfer_entropy_analysis(pair1, pair2, close1, close2, k=1, bins=3)
-
+            if self.config.get("calculate_dominance", False):
+                granger = self.granger_causality(pair1, pair2, close1, close2, max_lag=6)
+                entropy = self.transfer_entropy_analysis(pair1, pair2, close1, close2, k=1, bins=3)
+            else:
+                granger = {}
+                entropy = {}
             cointegration = self.analyze_pair_cointegration(close1, close2, interval)
 
             return {
@@ -302,6 +306,8 @@ class CointegrationV2Task(BaseTask):
         - Uses returns via `.pct_change()` and aligns series.
         - A p-value < 0.05 at any lag means the predictor Granger-causes the response.
         """
+        from statsmodels.tsa.stattools import grangercausalitytests
+
         # Align lengths
         min_len = min(len(close1), len(close2))
         x = close1[-min_len:]
@@ -371,6 +377,8 @@ class CointegrationV2Task(BaseTask):
         - DTW distance is symmetric (no direction).
         - Dominant is inferred by lower standard deviation in the preprocessed series.
         """
+        from dtaidistance import dtw
+
         # Align
         min_len = min(len(close1), len(close2))
         s1 = close1[-min_len:]
@@ -433,6 +441,8 @@ class CointegrationV2Task(BaseTask):
         - Output values are ≥ 0; higher = more information transfer
         - Returns must be discretized for symbolic entropy-based methods
         """
+        from pyinform.transferentropy import transfer_entropy
+
         # Align lengths
         min_len = min(len(close1), len(close2))
         s1 = close1[-min_len:]
@@ -524,6 +534,7 @@ async def main():
         "max_lookback_steps": 3,
         "lookback_step": 4 * 24 * 5,
         "p_value_threshold": 0.05,
+        "calculate_dominance": False,
     }
     task = CointegrationV2Task(name="cointegration_task_v2",
                                frequency=timedelta(hours=1),
