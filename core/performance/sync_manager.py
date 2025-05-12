@@ -105,13 +105,13 @@ class DatabaseSyncManager:
         for server in self.servers.values():
             server.update_state()
 
-    def fetch_all_missing(self):
+    def fetch_all_missing(self, server_name: str) -> List[str]:
         for server in self.servers.values():
             server.fetch_missing_dbs()
 
     def get_all_missing_dbs(self) -> Dict[str, Dict[str, List[str]]]:
         """Returns: { server_name: { instance_name: [dbs...] } }"""
         return {
-            server_name: handler.missing_dbs
+            server_name: handler.missing_dbs_names
             for server_name, handler in self.servers.items()
         }
