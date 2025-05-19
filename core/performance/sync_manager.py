@@ -7,8 +7,11 @@ from typing import Any, Dict, List
 class ServerHandler:
     def __init__(self, server_name: str, root_path: str, config: Dict[str, Any]):
         self.server_name = server_name
-        self.host = config["host"]
-        self.user = config["user"]
+        self.user = config.get("user", "root")
+        self.host = config.get("host", "localhost")
+        self.port = config.get("port", 8000)
+        self.backend_api_user = config.get("backend_api_user", "admin")
+        self.backend_api_password = config.get("backend_api_password", "admin")
         self.remote_data_path = config["data_path"]
         self.root_path = root_path
 
