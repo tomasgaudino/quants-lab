@@ -1,7 +1,15 @@
-from dash import Dash, html
+import asyncio
+import os
 
-from core.performance.dash.callbacks import register_callbacks
+from dash import Dash, html, dcc
+from dotenv import load_dotenv
+
+from core.performance.dash.backend import DashBackend
+from core.performance.dash.callbacks import DashCallbacks
 from core.performance.dash.layout import root_layout
+from core.performance.sync_manager import DatabaseSyncManager
+
+load_dotenv()
 
 
 app = Dash(__name__, suppress_callback_exceptions=True)
@@ -26,11 +34,9 @@ app.index_string = '''
     </body>
 </html>
 '''
-
-
-# Requires Dash 2.17.0 or later
 app.layout = html.Div(
     children=[
+        dcc.Store(id='load-trigger', data=True),  # dummy callback for no-input components
         html.Div(id='main-section',
                  children=root_layout)
     ],
@@ -39,7 +45,13 @@ app.layout = html.Div(
         'marginTop': '20px'
     })
 
-register_callbacks(app)
+
+root_path = os.path.abspath(os.path.join(os.getcwd(), '../../../'))
+sync_manager = DatabaseSyncManager(root_path)
+backend = DashBackend(root_path=root_path, sync_manager=sync_manager)
+backend.sync_manager.update_all()
+callbacks = DashCallbacks(app, backend)
+callbacks.register_callbacks()
 
 
 if __name__ == '__main__':
