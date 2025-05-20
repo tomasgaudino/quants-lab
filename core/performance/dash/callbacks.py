@@ -266,6 +266,7 @@ class DashCallbacks:
     def selected_server_callbacks(self):
         selected_server_input = Input("server-drop-down", "value")
         self.hummingbot_instances_callbacks(selected_server_input)
+        self.pnl_analysis_callbacks(selected_server_input)
 
     def hummingbot_instances_callbacks(self, selected_server_input: Input):
         @self.app.callback(
@@ -349,7 +350,109 @@ class DashCallbacks:
                     all_time_instances = len(performance_report.dbs_index.keys())
             return all_time_instances
 
+    def pnl_analysis_callbacks(self, selected_server_input: Input):
+        @self.app.callback(
+            Output("pnl-all-time", "children"),
+            Output("pnl-all-time-box", "style"),
+            selected_server_input
+        )
+        def update_global_pnl_metric(selected_server):
+            color_style = {"color": "white"}
+            global_pnl = 0.
+            if selected_server is not None:
+                server_key = self.get_server_key(selected_server)
+                pnl_table = self.backend.performance_reports[server_key].executors_df.copy()
+                if len(pnl_table) > 0:
+                    pnl_table = pnl_table[["close_timestamp", "net_pnl_quote"]].sort_values("close_timestamp")
+                    global_pnl = pnl_table["net_pnl_quote"].sum()
+                    if global_pnl != 0:
+                        color_style = {"backgroundColor": self.get_metric_color(global_pnl)}
+            return self.format_value(global_pnl, "$"), color_style
+
+        @self.app.callback(
+            Output("pnl-24h", "children"),
+            Output("pnl-24h-box", "style"),
+            selected_server_input
+        )
+        def update_last_24h_pnl_metric(selected_server):
+            global_pnl = 0.
+            color_style = {"color": "white"}
+            if selected_server is not None:
+                min_time = time.time() - 24 * 60 * 60
+                server_key = self.get_server_key(selected_server)
+                pnl_table = self.backend.performance_reports[server_key].executors_df.copy()
+                if len(pnl_table) > 0:
+                    pnl_table = pnl_table[["close_timestamp", "net_pnl_quote"]].sort_values("close_timestamp")
+                    global_pnl = pnl_table.loc[pnl_table["close_timestamp"] >= min_time, "net_pnl_quote"].sum()
+                    if global_pnl != 0:
+                        color_style = {"backgroundColor": self.get_metric_color(global_pnl)}
+            return self.format_value(global_pnl, "$"), color_style
+
+        @self.app.callback(
+            Output("pnl-7d", "children"),
+            Output("pnl-7d-box", "style"),
+            selected_server_input
+        )
+        def update_last_7d_pnl_metric(selected_server):
+            global_pnl = 0.
+            color_style = {"color": "white"}
+            if selected_server is not None:
+                min_time = time.time() - 7 * 24 * 60 * 60
+                server_key = self.get_server_key(selected_server)
+                pnl_table = self.backend.performance_reports[server_key].executors_df.copy()
+                if len(pnl_table) > 0:
+                    pnl_table = pnl_table[["close_timestamp", "net_pnl_quote"]].sort_values("close_timestamp")
+                    global_pnl = pnl_table.loc[pnl_table["close_timestamp"] >= min_time, "net_pnl_quote"].sum()
+                    if global_pnl != 0:
+                        color_style = {"backgroundColor": self.get_metric_color(global_pnl)}
+            return self.format_value(global_pnl, "$"), color_style
+
+        @self.app.callback(
+            Output("pnl-30d", "children"),
+            Output("pnl-30d-box", "style"),
+            selected_server_input
+        )
+        def update_last_30d_pnl_metric(selected_server):
+            global_pnl = 0.
+            color_style = {"color": "white"}
+            if selected_server is not None:
+                min_time = time.time() - 30 * 24 * 60 * 60
+                server_key = self.get_server_key(selected_server)
+                pnl_table = self.backend.performance_reports[server_key].executors_df.copy()
+                if len(pnl_table) > 0:
+                    pnl_table = pnl_table[["close_timestamp", "net_pnl_quote"]].sort_values("close_timestamp")
+                    global_pnl = pnl_table.loc[pnl_table["close_timestamp"] >= min_time, "net_pnl_quote"].sum()
+                    if global_pnl != 0:
+                        color_style = {"backgroundColor": self.get_metric_color(global_pnl)}
+            return self.format_value(global_pnl, "$"), color_style
+
+        # @self.app.callback(
+        #     Output(),
+        #     selected_server_input
+        # )
+        # def update_pnl_over_time_chart():
+        #     pass
+
     @staticmethod
     def get_server_key(selected_server: str):
         return selected_server[2:] if selected_server.startswith("🔴") or selected_server.startswith(
                 "🟢") else selected_server
+
+    @staticmethod
+    def get_metric_color(value: float) -> str:
+        color = "white"
+        if value < 0:
+            color = "red"
+        elif value > 0:
+            color = "green"
+        return color
+
+    @staticmethod
+    def format_value(value, unit: str = None) -> str:
+        if unit == "$":
+            formatted_value = f"$ {value:.2f}"
+        elif unit == "%":
+            formatted_value = f"{value:.2f} %"
+        else:
+            formatted_value = value
+        return formatted_value

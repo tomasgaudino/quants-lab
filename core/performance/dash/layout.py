@@ -87,10 +87,10 @@ global_layout = html.Div(style={"padding": "15px"}, children=[
         html.H3("PnL Analysis", style={"text-align": "center"}),
         html.Div(style={'display': 'flex'}, children=[
             html.Div(children=[
-                components.section_metric("pnl-all-time", "Total", f"$ {0.0:.2f}"),
-                components.section_metric("pnl-24h", "Last 24h", f"$ {0.0:.2f}"),
-                components.section_metric("pnl-7d", "Last 7d", f"$ {0.0:.2f}"),
-                components.section_metric("pnl-30d", "Last 30d", f"$ {0.0:.2f}"),
+                components.section_metric("pnl-24h", "Last 24h", 0., unit="$"),
+                components.section_metric("pnl-7d", "Last 7d", 0., unit="$"),
+                components.section_metric("pnl-30d", "Last 30d", 0., unit="$"),
+                components.section_metric("pnl-all-time", "Total", 0., unit="$"),
             ], style={'width': '200px'}),
             components.plotly_scatter(sample_data, "PnL Analysis", chart_id="pnl-over-time")
         ])
@@ -101,10 +101,10 @@ global_layout = html.Div(style={"padding": "15px"}, children=[
         html.H3("Volume Analysis", style={"text-align": "center"}),
         html.Div(style={'display': 'flex'}, children=[
             html.Div(children=[
-                components.section_metric("volume-global", "Total", f"$ {0.0:.2f}"),
-                components.section_metric("volume-24h", "Last 24h", f"$ {0.0:.2f}"),
-                components.section_metric("volume-7d", "Last 7d", f"$ {0.0:.2f}"),
-                components.section_metric("volume-30d", "Last 30d", f"$ {0.0:.2f}"),
+                components.section_metric("volume-global", "Total", 0., unit="$"),
+                components.section_metric("volume-24h", "Last 24h", 0., unit="$"),
+                components.section_metric("volume-7d", "Last 7d", 0., unit="$"),
+                components.section_metric("volume-30d", "Last 30d", 0., unit="$"),
             ], style={'width': '200px'}),
             components.plotly_scatter(sample_data, "Volume Analysis", chart_id="volume-over-time")
         ])
@@ -129,11 +129,11 @@ detail_layout = html.Div(children=[
     html.Div(style={'display': 'flex', 'width': '100%'}, className="section", children=[
         html.Div(
             children=[
-                html.Div(components.section_metric("explore-pnl", "PnL", f"$ {0.0:.2f}"), style={'flex': '1'}),
-                html.Div(components.section_metric("explore-volume", "Volume", f"$ {0.0:.2f}"), style={'flex': '1'}),
-                html.Div(components.section_metric("explore-trades", "Total Trades", f"{334}"), style={'flex': '1'}),
-                html.Div(components.section_metric("explore-max-draw-down", "Max Draw Down", f"{32.0:.2f}%"), style={'flex': '1'}),
-                html.Div(components.section_metric("explore-sharpe-ratio", "Sharpe Ratio", f"{1.03:.2f}"), style={'flex': '1'}),
+                html.Div(components.section_metric("explore-pnl", "PnL",  0., unit="$"), style={'flex': '1'}),
+                html.Div(components.section_metric("explore-volume", "Volume", 0., unit="$"), style={'flex': '1'}),
+                html.Div(components.section_metric("explore-trades", "Total Trades", 334), style={'flex': '1'}),
+                html.Div(components.section_metric("explore-max-draw-down", "Max Draw Down", 32.0, unit="%"), style={'flex': '1'}),
+                html.Div(components.section_metric("explore-sharpe-ratio", "Sharpe Ratio", 1.03), style={'flex': '1'}),
                 html.Div(components.section_metric("explore-total-duration", "Total Duration", f"17d 4h 30m"), style={'flex': '1'}),
                 html.Div(components.section_metric("explore-date-range", "Date Range", f"2025-04-03 -> 2025-04-20"), style={'flex': '1'}),
             ],

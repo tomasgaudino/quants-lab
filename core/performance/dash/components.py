@@ -25,12 +25,20 @@ def instance_metric(metric_id: str, legend: str, value: Any) -> html.Div:
     return component
 
 
-def section_metric(metric_id: str, legend: str, value: Any) -> html.Div:
+def section_metric(metric_id: str, legend: str, value: Any, unit: str = None) -> html.Div:
+    color = "white"
+    if unit == "$":
+        formatted_value = f"$ {value:.2f}"
+    elif unit == "%":
+        formatted_value = f"{value:.2f} %"
+    else:
+        formatted_value = value
     component = html.Div(children=[
                              html.H4(legend),
-                             html.P(value, id=metric_id)
+                             html.P(formatted_value, id=metric_id, style={"color": color, "fontWeight": "bold"})
                          ],
-                         className='metric-box'
+                         className='metric-box',
+                         id=f"{metric_id}-box"
                          )
     return component
 
