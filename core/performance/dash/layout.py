@@ -92,7 +92,7 @@ global_layout = html.Div(style={"padding": "15px"}, children=[
                 components.section_metric("pnl-7d", "Last 7d", f"$ {0.0:.2f}"),
                 components.section_metric("pnl-30d", "Last 30d", f"$ {0.0:.2f}"),
             ], style={'width': '200px'}),
-            components.plotly_scatter(sample_data, "PnL Analysis")
+            components.plotly_scatter(sample_data, "PnL Analysis", chart_id="pnl-over-time")
         ])
     ]),
 
@@ -106,7 +106,7 @@ global_layout = html.Div(style={"padding": "15px"}, children=[
                 components.section_metric("volume-7d", "Last 7d", f"$ {0.0:.2f}"),
                 components.section_metric("volume-30d", "Last 30d", f"$ {0.0:.2f}"),
             ], style={'width': '200px'}),
-            components.plotly_scatter(sample_data, "Volume Analysis")
+            components.plotly_scatter(sample_data, "Volume Analysis", chart_id="volume-over-time")
         ])
     ]),
 ])
@@ -168,14 +168,14 @@ detail_layout = html.Div(children=[
                         style={"flex": 1, "margin": "5px", "display": "flex", "flexDirection": "column"},
                         children=[
                             html.H5(children="Global PnL"),
-                            components.plotly_scatter(sample_data, "Global PnL", height=400),
+                            components.plotly_scatter(sample_data, "Global PnL", height=400, chart_id="explore-pnl-over-time"),
                         ]),
                     html.Div(
                         className='section',
                         style={"flex": 1, "margin": "5px", "display": "flex", "flexDirection": "column"},
                         children=[
                             html.H5(children="Global Volume"),
-                            components.plotly_scatter(sample_data, "Total Volume", height=400),
+                            components.plotly_scatter(sample_data, "Total Volume", height=400, chart_id="explore-volume-over-time"),
                         ]),
                 ],
             ),

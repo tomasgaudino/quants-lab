@@ -25,10 +25,10 @@ def instance_metric(metric_id: str, legend: str, value: Any) -> html.Div:
     return component
 
 
-def section_metric(legend: str, value: Any) -> html.Div:
+def section_metric(metric_id: str, legend: str, value: Any) -> html.Div:
     component = html.Div(children=[
                              html.H4(legend),
-                             html.P(value)
+                             html.P(value, id=metric_id)
                          ],
                          className='metric-box'
                          )
@@ -37,6 +37,7 @@ def section_metric(legend: str, value: Any) -> html.Div:
 
 def plotly_scatter(data: List[Dict[str, Any]],
                    title: str,
+                   chart_id: str,
                    height: int = 400,
                    dark: bool = True,
                    static_plot: bool = True) -> html.Div:
@@ -57,6 +58,7 @@ def plotly_scatter(data: List[Dict[str, Any]],
         config={"staticPlot": static_plot},
         figure={'data': data, 'layout': layout},
         className='dash-graph',
+        id=chart_id,
         style={'height': f'{height}px', 'width': '100%'}
     )
 
