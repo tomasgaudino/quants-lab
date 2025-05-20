@@ -83,8 +83,6 @@ class PerformanceReport:
             except Exception as e:
                 print(e.with_traceback(None))
                 continue
-        self.trading_pairs = list(self.trades_df["trading_pair"].unique())
-        self.market_data: Dict[str, Candles] = None
 
     @staticmethod
     def get_executors(database: HummingbotDatabase, database_id: str) -> pd.DataFrame:

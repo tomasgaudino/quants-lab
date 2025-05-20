@@ -1,16 +1,9 @@
-import os
-import json
-
 import pandas as pd
-from dotenv import load_dotenv
 from dash import html, dcc
 import core.performance.dash.components as components
 from core.performance.dash.components import echart_candlestick
 
-load_dotenv()
-servers = json.loads(os.getenv("BACKEND_API_SERVERS", '{"main": "localhost"}'))
 
-# Root layout
 root_layout = html.Div(children=[
     html.Div(
         style={'display': 'flex', 'justifyContent': 'space-between', 'alignItems': 'center'},
@@ -25,14 +18,34 @@ root_layout = html.Div(children=[
     ),
     html.Div(children="Here is your trading overview"),
     html.Br(),
-    html.Div(children=[
-        html.Label("Server"),
-        dcc.Dropdown(
-            options=[{'label': s, 'value': s} for s in servers.keys()],
-            multi=False,
-            className='dash-dropdown'
-        ),
-    ]),
+    html.Div(
+        style={
+            'alignItems': 'center',
+            'gap': '20px',  # Espacio entre dropdown y estado
+            'marginBottom': '20px'
+        },
+        children=[
+            html.Div([
+                html.Label("Server"),
+                dcc.Dropdown(
+                    id="server-drop-down",
+                    options=[],
+                    placeholder="Select a server...",
+                    className="dash-dropdown"
+                )
+            ]),
+            html.Br(),
+            html.Div(
+                id="db-status-content",  # Ya no dentro de `dcc.Loading` ni fondo oscuro
+                style={
+                    'display': 'flex',
+                    'alignItems': 'center',
+                    'gap': '10px',
+                    'alignSelf': 'flex-end',
+                }
+            )
+        ]
+    ),
     html.Br(),
     dcc.Tabs(
         id="main-tabs",
@@ -59,11 +72,11 @@ global_layout = html.Div(style={"padding": "15px"}, children=[
                 html.Div(
                     style={'display': 'flex', 'flex': '1'},
                     children=[
-                        components.instance_metric("⏳ Running", 0),
-                        components.instance_metric("📥 Last 24h", 0),
-                        components.instance_metric("📥 Last 7d", 0),
-                        components.instance_metric("📥 Last 30d", 0),
-                        components.instance_metric("📥 All Time", 0),
+                        components.instance_metric("hbot-instance-running", "⏳ Running", 0),
+                        components.instance_metric("hbot-instance-24h", "📥 Last 24h", 0),
+                        components.instance_metric("hbot-instance-7d", "📥 Last 7d", 0),
+                        components.instance_metric("hbot-instance-30d", "📥 Last 30d", 0),
+                        components.instance_metric("hbot-instance-all-time", "📥 All Time", 0),
                     ]
                 ),
             ]

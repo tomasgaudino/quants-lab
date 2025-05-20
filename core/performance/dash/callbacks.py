@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import io
+import time
 
 from cachetools import TTLCache
 import pandas as pd
@@ -27,15 +28,18 @@ class DashCallbacks:
     def __init__(self, app: Dash, backend: DashBackend):
         self.app = app
         self.backend = backend
+        self.dummy_callback = Input('load-trigger', 'data')
+        self.backend.update_performance_reports()
 
     def register_callbacks(self):
         self.tab_navigation_callbacks()
         self.database_sync_callbacks()
+        self.selected_server_callbacks()
 
     def database_sync_callbacks(self):
         @self.app.callback(
             Output('server-drop-down', 'options'),
-            Input('load-trigger', 'data')
+            self.dummy_callback
         )
         def get_available_servers(_):
             servers_info_df = asyncio.run(self.backend.fetch_servers_info())
@@ -47,7 +51,6 @@ class DashCallbacks:
                     name = "🔴 " + row["name"]
                 server_options.append(name)
             self.cache["server_options"] = server_options
-            self.backend.update_performance_reports()
             return server_options
 
         @self.app.callback(
@@ -90,8 +93,7 @@ class DashCallbacks:
             if not selected_server:
                 raise PreventUpdate
 
-            server_key = selected_server[2:] if selected_server.startswith("🔴") or selected_server.startswith(
-                "🟢") else selected_server
+            server_key = self.get_server_key(selected_server)
             server: ServerHandler = self.backend.sync_manager.servers[server_key]
 
             log_output = io.StringIO()
@@ -104,7 +106,6 @@ class DashCallbacks:
             notifications = [
                 html.Div(log, className="notification") for log in logs if log.strip()
             ]
-            self.backend.update_performance_reports()
             return notifications
 
     def tab_navigation_callbacks(self):
@@ -262,10 +263,93 @@ class DashCallbacks:
             else:
                 return html.Div("Tab not found")
 
-        #
-        # @app.callback(
-        #     Output('hbot-instance-running', 'value'),
-        #     State("server-drop-down", "value"),
-        # )
-        # def update_hummingbot_instances():
-        #     pass
+    def selected_server_callbacks(self):
+        selected_server_input = Input("server-drop-down", "value")
+        self.hummingbot_instances_callbacks(selected_server_input)
+
+    def hummingbot_instances_callbacks(self, selected_server_input: Input):
+        @self.app.callback(
+            Output('hbot-instance-running', 'children'),
+            selected_server_input,
+        )
+        def update_hummingbot_instances(selected_server):
+            if selected_server is not None:
+                server_key = self.get_server_key(selected_server)
+                bots_status_resp = self.backend.backend_api_clients[server_key]["data"]["bots_status"]
+                if bots_status_resp:
+                    bots_status = bots_status_resp["data"]
+                    n_instances = len(
+                        [instance_name for instance_name, data in bots_status.items()
+                         if data["status"] == "running"]
+                    )
+                    return n_instances
+            return 0
+
+        @self.app.callback(
+            Output('hbot-instance-24h', 'children'),
+            selected_server_input
+        )
+        def update_last_24h_instances(selected_server):
+            last_24h_instances = 0
+            time_window = 24 * 60 * 60
+            if selected_server is not None:
+                server_key = self.get_server_key(selected_server)
+                performance_report = self.backend.performance_reports[server_key]
+                if performance_report:
+                    for db_name, index in performance_report.dbs_index.items():
+                        end_time = index.get("end_time")
+                        if end_time >= time.time() - time_window:
+                            last_24h_instances += 1
+            return last_24h_instances
+
+        @self.app.callback(
+            Output("hbot-instance-7d", 'children'),
+            selected_server_input
+        )
+        def update_last_7d_instances(selected_server):
+            last_7d_instances = 0
+            time_window = 7 * 24 * 60 * 60
+            if selected_server is not None:
+                server_key = self.get_server_key(selected_server)
+                performance_report = self.backend.performance_reports[server_key]
+                if performance_report:
+                    for db_name, index in performance_report.dbs_index.items():
+                        end_time = index.get("end_time")
+                        if end_time >= time.time() - time_window:
+                            last_7d_instances += 1
+            return last_7d_instances
+
+        @self.app.callback(
+            Output("hbot-instance-30d", 'children'),
+            selected_server_input
+        )
+        def update_last_30d_instances(selected_server):
+            last_30d_instances = 0
+            time_window = 30 * 24 * 60 * 60
+            if selected_server is not None:
+                server_key = self.get_server_key(selected_server)
+                performance_report = self.backend.performance_reports[server_key]
+                if performance_report:
+                    for db_name, index in performance_report.dbs_index.items():
+                        end_time = index.get("end_time")
+                        if end_time >= time.time() - time_window:
+                            last_30d_instances += 1
+            return last_30d_instances
+
+        @self.app.callback(
+            Output("hbot-instance-all-time", 'children'),
+            selected_server_input
+        )
+        def update_all_time_instances(selected_server):
+            all_time_instances = 0
+            if selected_server is not None:
+                server_key = self.get_server_key(selected_server)
+                performance_report = self.backend.performance_reports[server_key]
+                if performance_report:
+                    all_time_instances = len(performance_report.dbs_index.keys())
+            return all_time_instances
+
+    @staticmethod
+    def get_server_key(selected_server: str):
+        return selected_server[2:] if selected_server.startswith("🔴") or selected_server.startswith(
+                "🟢") else selected_server

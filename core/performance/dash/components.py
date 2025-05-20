@@ -9,10 +9,10 @@ import pandas as pd
 from dash import html, dcc, dash_table
 
 
-def instance_metric(legend: str, value: Any) -> html.Div:
+def instance_metric(metric_id: str, legend: str, value: Any) -> html.Div:
     metric_name = html.Span(legend, className='legend')
     separator = html.Div(className='separator')
-    value_str = html.Span(value, className='value')
+    value_str = html.Span(value, className='value', id=metric_id)
 
     component_children = html.Div(children=[metric_name, separator, value_str],
                                   className='metric-inner')
