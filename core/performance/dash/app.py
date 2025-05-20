@@ -50,6 +50,7 @@ root_path = os.path.abspath(os.path.join(os.getcwd(), '../../../'))
 sync_manager = DatabaseSyncManager(root_path)
 backend = DashBackend(root_path=root_path, sync_manager=sync_manager)
 backend.sync_manager.update_all()
+asyncio.run(backend.connect_backend_api_clients())
 callbacks = DashCallbacks(app, backend)
 callbacks.register_callbacks()
 

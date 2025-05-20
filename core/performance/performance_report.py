@@ -1,4 +1,5 @@
 import logging
+import os
 import warnings
 
 from typing import Dict, Any, List
@@ -22,13 +23,13 @@ class PerformanceReport:
     def __init__(self,
                  mongo_uri: str,
                  database: str,
-                 root_path: str,
-                 owner: str,
-                 controller_names: List[str]):
+                 root_path: str = "",
+                 owner: str = "master",
+                 controller_names: List[str] = None):
         self.mongo_client = MongoClient(uri=mongo_uri, database=database)
         self.root_path = root_path
-        # self.clob = CLOBDataSource()
         self.visualizer = Visualizer()
+        self.dbs_index: Dict[str, Any] = {}
         self.controller_names = controller_names
         self.owner = owner
         self.controllers_df = pd.DataFrame()
@@ -68,13 +69,17 @@ class PerformanceReport:
 
         return filtered_options
 
-    async def load_data(self, db_list: List[str]):
+    def load_data(self, db_list: List[str], server_name: str = ""):
         for database_id in db_list:
             try:
-                database = HummingbotDatabase(db_name=database_id, root_path=self.root_path)
+                database = HummingbotDatabase(db_name=database_id, root_path=self.root_path, server_name=server_name)
                 self.executors_df = pd.concat([self.executors_df, self.get_executors(database=database, database_id=database_id)])
                 self.controllers_df = pd.concat([self.controllers_df, self.get_controllers(database)])
                 self.trades_df = pd.concat([self.trades_df, self.get_trades_df()])
+                self.dbs_index[database_id] = {
+                    "start_time": self.trades_df.timestamp.min(),
+                    "end_time": self.trades_df.timestamp.max(),
+                }
             except Exception as e:
                 print(e.with_traceback(None))
                 continue
@@ -94,7 +99,8 @@ class PerformanceReport:
         controllers_df.rename(columns={"id": "controller_id", "type": "controller_type"}, inplace=True)
         controllers_df["database_id"] = database.db_name
         controllers_df["controller_name"] = controllers_df["config"].apply(lambda x: x["controller_name"])
-        controllers_df = controllers_df[controllers_df["controller_name"].isin(self.controller_names)]
+        if self.controller_names:
+            controllers_df = controllers_df[controllers_df["controller_name"].isin(self.controller_names)]
         return controllers_df
 
     def get_trades_df(self) -> pd.DataFrame:
