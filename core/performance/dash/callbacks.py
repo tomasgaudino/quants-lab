@@ -6,6 +6,7 @@ import time
 from cachetools import TTLCache
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from dash import Input, Output, html, dash_table, State, Dash
 from dash.exceptions import PreventUpdate
 
@@ -30,6 +31,10 @@ class DashCallbacks:
         self.backend = backend
         self.dummy_callback = Input('load-trigger', 'data')
         self.backend.update_performance_reports()
+        self.one_day = 24 * 60 * 60
+        self.one_week = 7 * 24 * 60 * 60
+        self.thirty_days = 30 * 24 * 60 * 60
+
 
     def register_callbacks(self):
         self.tab_navigation_callbacks()
@@ -292,7 +297,7 @@ class DashCallbacks:
         )
         def update_last_24h_instances(selected_server):
             last_24h_instances = 0
-            time_window = 24 * 60 * 60
+            time_window = self.one_day
             if selected_server is not None:
                 server_key = self.get_server_key(selected_server)
                 performance_report = self.backend.performance_reports[server_key]
@@ -309,7 +314,7 @@ class DashCallbacks:
         )
         def update_last_7d_instances(selected_server):
             last_7d_instances = 0
-            time_window = 7 * 24 * 60 * 60
+            time_window = self.one_week
             if selected_server is not None:
                 server_key = self.get_server_key(selected_server)
                 performance_report = self.backend.performance_reports[server_key]
@@ -326,7 +331,7 @@ class DashCallbacks:
         )
         def update_last_30d_instances(selected_server):
             last_30d_instances = 0
-            time_window = 30 * 24 * 60 * 60
+            time_window = self.thirty_days
             if selected_server is not None:
                 server_key = self.get_server_key(selected_server)
                 performance_report = self.backend.performance_reports[server_key]
@@ -388,7 +393,7 @@ class DashCallbacks:
             if selected_server is None:
                 return global_pnl, color_style
 
-            min_time = time.time() - 24 * 60 * 60
+            min_time = time.time() - self.one_day
             server_key = self.get_server_key(selected_server)
             df = self.backend.performance_reports[server_key].executors_df.copy()
             if df.empty:
@@ -414,7 +419,7 @@ class DashCallbacks:
             if selected_server is None:
                 return global_pnl, color_style
 
-            min_time = time.time() - 7 * 24 * 60 * 60
+            min_time = time.time() - self.one_week
             server_key = self.get_server_key(selected_server)
             df = self.backend.performance_reports[server_key].executors_df.copy()
             if df.empty:
@@ -440,7 +445,7 @@ class DashCallbacks:
             if selected_server is None:
                 return global_pnl, color_style
 
-            min_time = time.time() - 30 * 24 * 60 * 60
+            min_time = time.time() - self.thirty_days
             server_key = self.get_server_key(selected_server)
             df = self.backend.performance_reports[server_key].executors_df.copy()
             if df.empty:
@@ -454,12 +459,50 @@ class DashCallbacks:
 
             return self.format_value(global_pnl, "$"), color_style
 
-        # @self.app.callback(
-        #     Output(),
-        #     selected_server_input
-        # )
-        # def update_pnl_over_time_chart():
-        #     pass
+        @self.app.callback(
+            Output("pnl-over-time", "figure"),
+            selected_server_input
+        )
+        def update_global_pnl_over_time_chart(selected_server, dark: bool = True):
+            layout = {
+                'template': 'plotly_dark',
+                'title': "PnL Over Time",
+                'height': 400,
+                'paper_bgcolor': '#242120',
+                'plot_bgcolor': '#242120',
+                'font': {'color': '#ffffff'},
+                'xaxis': {'title': 'Time'},
+                'yaxis': {'title': 'Value'},
+            }
+            if selected_server is None:
+                return {"data": [go.Scatter(x=[0], y=[0])], "layout": layout}
+
+            server_key = self.get_server_key(selected_server)
+            df = self.backend.performance_reports[server_key].executors_df.copy()
+            if df.empty:
+                return {"data": [go.Scatter(x=[0], y=[0])], "layout": layout}
+
+            fig = go.Figure()
+            df = df[["close_timestamp", "net_pnl_quote"]].sort_values("close_timestamp").reset_index()
+            for period in [self.one_day, self.one_week, self.thirty_days]:
+                time_window = df[df["close_timestamp"] >= period]
+                fig.add_trace(
+                    go.Scatter(
+                        x=time_window.index,
+                        y=time_window["net_pnl_quote"].cumsum(),
+                        mode="lines+markers",
+                        name=f"{int(round(period / (24 * 60 * 60), 0))} days",
+                    )
+                )
+            fig.add_trace(
+                go.Scatter(
+                    x=df.reset_index().index,
+                    y=df["net_pnl_quote"].cumsum(),
+                    mode="lines+markers",
+                    name="All Time",
+                )
+            )
+            return {"data": fig.data, "layout": layout}
 
     @staticmethod
     def get_server_key(selected_server: str):

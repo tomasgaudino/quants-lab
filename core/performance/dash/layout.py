@@ -92,7 +92,13 @@ global_layout = html.Div(style={"padding": "15px"}, children=[
                 components.section_metric("pnl-30d", "Last 30d", 0., unit="$"),
                 components.section_metric("pnl-all-time", "Total", 0., unit="$"),
             ], style={'width': '200px'}),
-            components.plotly_scatter(sample_data, "PnL Analysis", chart_id="pnl-over-time")
+
+            components.plotly_scatter(
+                data=[],  # initially empty or default
+                title="PnL Over Time",
+                chart_id="pnl-over-time",
+                static_plot=False
+            )
         ])
     ]),
 
