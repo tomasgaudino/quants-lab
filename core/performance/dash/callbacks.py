@@ -34,7 +34,12 @@ class DashCallbacks:
         self.one_day = 24 * 60 * 60
         self.one_week = 7 * 24 * 60 * 60
         self.thirty_days = 30 * 24 * 60 * 60
-
+        self.periods = [
+            ("Last day", self.one_day, "#8CBFFF"),
+            ("Last week", self.one_week, "#5699FF"),
+            ("Last month", self.thirty_days, "#2C6EFF"),
+        ]
+        self.all_time_color = "#1741B6"
 
     def register_callbacks(self):
         self.tab_navigation_callbacks()
@@ -271,7 +276,8 @@ class DashCallbacks:
     def selected_server_callbacks(self):
         selected_server_input = Input("server-drop-down", "value")
         self.hummingbot_instances_callbacks(selected_server_input)
-        self.pnl_analysis_callbacks(selected_server_input)
+        self.global_pnl_analysis_callbacks(selected_server_input)
+        self.global_volume_analysis_callbacks(selected_server_input)
 
     def hummingbot_instances_callbacks(self, selected_server_input: Input):
         @self.app.callback(
@@ -355,7 +361,7 @@ class DashCallbacks:
                     all_time_instances = len(performance_report.dbs_index.keys())
             return all_time_instances
 
-    def pnl_analysis_callbacks(self, selected_server_input: Input):
+    def global_pnl_analysis_callbacks(self, selected_server_input: Input):
         @self.app.callback(
             Output("pnl-all-time", "children"),
             Output("pnl-all-time-box", "style"),
@@ -484,22 +490,176 @@ class DashCallbacks:
 
             fig = go.Figure()
             df = df[["close_timestamp", "net_pnl_quote"]].sort_values("close_timestamp").reset_index()
-            for period in [self.one_day, self.one_week, self.thirty_days]:
-                time_window = df[df["close_timestamp"] >= period]
+            for label, period, color in self.periods:
+                start_time = time.time() - period
+                time_window = df[df["close_timestamp"] >= start_time]
                 fig.add_trace(
                     go.Scatter(
                         x=time_window.index,
                         y=time_window["net_pnl_quote"].cumsum(),
                         mode="lines+markers",
-                        name=f"{int(round(period / (24 * 60 * 60), 0))} days",
+                        line=dict(color=color),
+                        name=label,
                     )
                 )
             fig.add_trace(
                 go.Scatter(
                     x=df.reset_index().index,
                     y=df["net_pnl_quote"].cumsum(),
+                    line=dict(color=self.all_time_color),
                     mode="lines+markers",
                     name="All Time",
+                )
+            )
+            return {"data": fig.data, "layout": layout}
+
+    def global_volume_analysis_callbacks(self, selected_server_input: Input):
+        @self.app.callback(
+            Output("volume-all-time", "children"),
+            Output("volume-all-time-box", "style"),
+            selected_server_input
+        )
+        def update_global_volume_metric(selected_server):
+            global_volume = 0.
+            color_style = {"color": "white"}
+
+            if selected_server is None:
+                return global_volume, color_style
+
+            server_key = self.get_server_key(selected_server)
+            df = self.backend.performance_reports[server_key].executors_df.copy()
+            if df.empty:
+                return global_volume, color_style
+
+            volume_table = df[["close_timestamp", "filled_amount_quote"]].sort_values("close_timestamp")
+            global_volume = volume_table["filled_amount_quote"].sum()
+
+            if global_volume != 0:
+                color_style = {"backgroundColor": self.get_metric_color(global_volume)}
+
+            return self.format_value(global_volume, "$"), color_style
+
+        @self.app.callback(
+            Output("volume-24h", "children"),
+            Output("volume-24h-box", "style"),
+            selected_server_input
+        )
+        def update_last_24h_volume_metric(selected_server):
+            global_volume = 0.
+            color_style = {"color": "white"}
+
+            if selected_server is None:
+                return global_volume, color_style
+
+            min_time = time.time() - self.one_day
+            server_key = self.get_server_key(selected_server)
+            df = self.backend.performance_reports[server_key].executors_df.copy()
+            if df.empty:
+                return global_volume, color_style
+
+            volume_table = df[["close_timestamp", "filled_amount_quote"]].sort_values("close_timestamp")
+            global_volume = volume_table.loc[volume_table["close_timestamp"] >= min_time, "filled_amount_quote"].sum()
+
+            if global_volume != 0:
+                color_style = {"backgroundColor": self.get_metric_color(global_volume)}
+
+            return self.format_value(global_volume, "$"), color_style
+
+        @self.app.callback(
+            Output("volume-7d", "children"),
+            Output("volume-7d-box", "style"),
+            selected_server_input
+        )
+        def update_last_7d_volume_metric(selected_server):
+            global_volume = 0.
+            color_style = {"color": "white"}
+
+            if selected_server is None:
+                return global_volume, color_style
+
+            min_time = time.time() - self.one_week
+            server_key = self.get_server_key(selected_server)
+            df = self.backend.performance_reports[server_key].executors_df.copy()
+            if df.empty:
+                return global_volume, color_style
+
+            volume_table = df[["close_timestamp", "filled_amount_quote"]].sort_values("close_timestamp")
+            global_volume = volume_table.loc[volume_table["close_timestamp"] >= min_time, "filled_amount_quote"].sum()
+
+            if global_volume != 0:
+                color_style = {"backgroundColor": self.get_metric_color(global_volume)}
+
+            return self.format_value(global_volume, "$"), color_style
+
+        @self.app.callback(
+            Output("volume-30d", "children"),
+            Output("volume-30d-box", "style"),
+            selected_server_input
+        )
+        def update_last_30d_volume_metric(selected_server):
+            global_volume = 0.
+            color_style = {"color": "white"}
+
+            if selected_server is None:
+                return global_volume, color_style
+
+            min_time = time.time() - self.thirty_days
+            server_key = self.get_server_key(selected_server)
+            df = self.backend.performance_reports[server_key].executors_df.copy()
+            if df.empty:
+                return global_volume, color_style
+
+            volume_table = df[["close_timestamp", "filled_amount_quote"]].sort_values("close_timestamp")
+            global_volume = volume_table.loc[volume_table["close_timestamp"] >= min_time, "filled_amount_quote"].sum()
+
+            if global_volume != 0:
+                color_style = {"backgroundColor": self.get_metric_color(global_volume)}
+
+            return self.format_value(global_volume, "$"), color_style
+
+        @self.app.callback(
+            Output("volume-over-time", "figure"),
+            selected_server_input
+        )
+        def update_global_volume_over_time_chart(selected_server, dark: bool = True):
+            layout = {
+                'template': 'plotly_dark',
+                'title': "Volume Over Time",
+                'height': 400,
+                'paper_bgcolor': '#242120',
+                'plot_bgcolor': '#242120',
+                'font': {'color': '#ffffff'},
+                'xaxis': {'title': 'Time'},
+                'yaxis': {'title': 'Value'},
+                'barmode': 'group',
+            }
+            if selected_server is None:
+                return {"data": [go.Bar(x=[0], y=[0])], "layout": layout}
+
+            server_key = self.get_server_key(selected_server)
+            df = self.backend.performance_reports[server_key].executors_df.copy()
+            if df.empty:
+                return {"data": [go.Bar(x=[0], y=[0])], "layout": layout}
+
+            fig = go.Figure()
+            df = df[["close_timestamp", "filled_amount_quote"]].sort_values("close_timestamp").reset_index()
+            for label, period, color in self.periods:
+                start_time = time.time() - period
+                time_window = df[df["close_timestamp"] >= start_time]
+                fig.add_trace(
+                    go.Bar(
+                        x=time_window.index,
+                        y=time_window["filled_amount_quote"].cumsum(),
+                        name=label,
+                        marker_color=color,
+                    )
+                )
+            fig.add_trace(
+                go.Bar(
+                    x=df.reset_index().index,
+                    y=df["filled_amount_quote"].cumsum(),
+                    name="All Time",
+                    marker_color=self.all_time_color,
                 )
             )
             return {"data": fig.data, "layout": layout}

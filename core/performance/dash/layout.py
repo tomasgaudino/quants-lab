@@ -107,12 +107,17 @@ global_layout = html.Div(style={"padding": "15px"}, children=[
         html.H3("Volume Analysis", style={"text-align": "center"}),
         html.Div(style={'display': 'flex'}, children=[
             html.Div(children=[
-                components.section_metric("volume-global", "Total", 0., unit="$"),
                 components.section_metric("volume-24h", "Last 24h", 0., unit="$"),
                 components.section_metric("volume-7d", "Last 7d", 0., unit="$"),
                 components.section_metric("volume-30d", "Last 30d", 0., unit="$"),
+                components.section_metric("volume-all-time", "Total", 0., unit="$"),
             ], style={'width': '200px'}),
-            components.plotly_scatter(sample_data, "Volume Analysis", chart_id="volume-over-time")
+            components.plotly_scatter(
+                data=[],  # initially empty or default
+                title="Volume Over Time",
+                chart_id="volume-over-time",
+                static_plot=False
+            )
         ])
     ]),
 ])
