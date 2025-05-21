@@ -671,12 +671,11 @@ class DashCallbacks:
 
     @staticmethod
     def get_metric_color(value: float) -> str:
-        color = "white"
         if value < 0:
-            color = "red"
+            return "rgba(205, 92, 92, 0.7)"  # indianred
         elif value > 0:
-            color = "green"
-        return color
+            return "rgba(144, 238, 144, 0.7)"  # lightgreen
+        return "rgba(255, 255, 255, 0.2)"  # translucent white
 
     @staticmethod
     def format_value(value, unit: str = None) -> str:
