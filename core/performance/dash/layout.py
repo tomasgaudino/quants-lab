@@ -139,9 +139,9 @@ detail_layout = html.Div(children=[
             children=[
                 html.Div(components.section_metric("explore-pnl", "PnL",  0., unit="$"), style={'flex': '1'}),
                 html.Div(components.section_metric("explore-volume", "Volume", 0., unit="$"), style={'flex': '1'}),
-                html.Div(components.section_metric("explore-trades", "Total Trades", 334), style={'flex': '1'}),
-                html.Div(components.section_metric("explore-max-draw-down", "Max Draw Down", 32.0, unit="%"), style={'flex': '1'}),
-                html.Div(components.section_metric("explore-sharpe-ratio", "Sharpe Ratio", 1.03), style={'flex': '1'}),
+                html.Div(components.section_metric("explore-trades", "Total Trades", 0), style={'flex': '1'}),
+                html.Div(components.section_metric("explore-max-draw-down", "Max Draw Down", 0, unit="%"), style={'flex': '1'}),
+                html.Div(components.section_metric("explore-sharpe-ratio", "Sharpe Ratio", 0), style={'flex': '1'}),
                 html.Div(components.section_metric("explore-total-duration", "Total Duration", f"17d 4h 30m"), style={'flex': '1'}),
                 html.Div(components.section_metric("explore-date-range", "Date Range", f"2025-04-03 -> 2025-04-20"), style={'flex': '1'}),
             ],
@@ -165,7 +165,22 @@ detail_layout = html.Div(children=[
                     dcc.Loading(
                         id="loading-graph",
                         type="default",  # options: 'default', 'circle', 'dot', 'cube'
-                        children=dcc.Graph(id='treemap-graph')
+                        children=dcc.Graph(
+                            config={"staticPlot": False},
+                            figure={'data': [], 'layout': {
+                                'template': 'plotly_dark',
+                                'title': "Trading Treemap",
+                                'height': 800,
+                                'paper_bgcolor': '#242120',
+                                'plot_bgcolor': '#242120',
+                                'font': {'color': '#ffffff'},
+                                'xaxis': {'title': 'Time'},
+                                'yaxis': {'title': 'Value'},
+                            }},  # TODO: unify this layout thing accross all default charts
+                            className='dash-graph',
+                            id="treemap-graph",
+                            style={'height': f'{800}px', 'width': '100%'}
+                        )
                     )
                 ]),
             html.Div(
