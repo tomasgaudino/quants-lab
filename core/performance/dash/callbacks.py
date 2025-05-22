@@ -278,6 +278,8 @@ class DashCallbacks:
         self.hummingbot_instances_callbacks(selected_server_input)
         self.global_pnl_analysis_callbacks(selected_server_input)
         self.global_volume_analysis_callbacks(selected_server_input)
+        self.explore_analysis_callbacks(selected_server_input)
+
 
     def hummingbot_instances_callbacks(self, selected_server_input: Input):
         @self.app.callback(
@@ -663,6 +665,24 @@ class DashCallbacks:
                 )
             )
             return {"data": fig.data, "layout": layout}
+
+    def explore_analysis_callbacks(self, selected_server_input):
+        @self.app.callback(
+            Output("path-dropdown", "options"),
+            Output("path-dropdown", "value"),
+            selected_server_input
+        )
+        def columns_path_dropdown(selected_server):
+            if selected_server is None:
+                return []
+
+            server_key = self.get_server_key(selected_server)
+            df = self.backend.performance_reports[server_key].trades_df.copy()
+            if df.empty:
+                return []
+            options = [{'label': col, 'value': col} for col in df.columns]
+            initial_values = ["controller_name", "connector_name", "trading_pair", "database_id", "controller_id"]
+            return options, initial_values
 
     @staticmethod
     def get_server_key(selected_server: str):

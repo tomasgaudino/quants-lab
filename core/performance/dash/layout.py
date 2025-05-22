@@ -122,9 +122,6 @@ global_layout = html.Div(style={"padding": "15px"}, children=[
     ]),
 ])
 
-df_summary = pd.read_csv("assets/df_summary.csv")
-initial_path = ["controller_name", "connector_name", "trading_pair", "database_id", "controller_id"]
-
 detail_layout = html.Div(children=[
     html.H2("🎯 Navigate your own path"),
     html.Br(),
@@ -132,8 +129,8 @@ detail_layout = html.Div(children=[
         html.Label("Treemap hierarchy"),
         dcc.Dropdown(
             id='path-dropdown',
-            options=[{'label': col, 'value': col} for col in df_summary.columns],
-            value=initial_path,
+            options=[],
+            value=[],
             multi=True
         ),
     ]),
