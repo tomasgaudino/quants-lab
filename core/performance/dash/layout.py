@@ -191,7 +191,14 @@ detail_layout = html.Div(children=[
                         style={"flex": 1, "margin": "5px", "display": "flex", "flexDirection": "column"},
                         children=[
                             html.H5(children="Global PnL"),
-                            components.plotly_scatter(sample_data, "Global PnL", height=400, chart_id="explore-pnl-over-time"),
+                            dcc.Checklist(
+                                id="options-checklist",
+                                options=[{"label": "Explode", "value": "explode"},
+                                         {"label": "Atemporal", "value": "atemporal"}],
+                                value=["atemporal"],  # default selected
+                                inline=True
+                            ),
+                            components.plotly_scatter(sample_data, "Global PnL", height=400, chart_id="explore-pnl-over-time", static_plot=False),
                         ]),
                     html.Div(
                         className='section',

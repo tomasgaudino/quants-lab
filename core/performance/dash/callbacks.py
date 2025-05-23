@@ -25,6 +25,16 @@ class DashCallbacks:
         {'selector': '.dash-cell',
          'rule': 'background-color: #1C1917; color: #FFFFFF; border-bottom: 1px solid #444444; padding: 10px; text-align: center;'},
     ]
+    layout = {
+        'template': 'plotly_dark',
+        'title': "PnL Over Time",
+        'height': 400,
+        'paper_bgcolor': '#242120',
+        'plot_bgcolor': '#242120',
+        'font': {'color': '#ffffff'},
+        'xaxis': {'title': 'Time'},
+        'yaxis': {'title': 'Value'},
+    }
 
     def __init__(self, app: Dash, backend: DashBackend):
         self.app = app
@@ -455,23 +465,13 @@ class DashCallbacks:
             selected_server_input
         )
         def update_global_pnl_over_time_chart(selected_server, dark: bool = True):
-            layout = {
-                'template': 'plotly_dark',
-                'title': "PnL Over Time",
-                'height': 400,
-                'paper_bgcolor': '#242120',
-                'plot_bgcolor': '#242120',
-                'font': {'color': '#ffffff'},
-                'xaxis': {'title': 'Time'},
-                'yaxis': {'title': 'Value'},
-            }
             if selected_server is None:
-                return {"data": [go.Scatter(x=[0], y=[0])], "layout": layout}
+                return {"data": [go.Scatter(x=[0], y=[0])], "layout": self.layout}
 
             server_key = self.get_server_key(selected_server)
             df = self.backend.performance_reports[server_key].executors_df.copy()
             if df.empty:
-                return {"data": [go.Scatter(x=[0], y=[0])], "layout": layout}
+                return {"data": [go.Scatter(x=[0], y=[0])], "layout": self.layout}
 
             fig = go.Figure()
             df = df[["close_timestamp", "net_pnl_quote"]].sort_values("close_timestamp").reset_index()
@@ -496,7 +496,7 @@ class DashCallbacks:
                     name="All Time",
                 )
             )
-            return {"data": fig.data, "layout": layout}
+            return {"data": fig.data, "layout": self.layout}
 
     def global_volume_analysis_callbacks(self, selected_server_input: Input):
         @self.app.callback(
@@ -607,24 +607,13 @@ class DashCallbacks:
             selected_server_input
         )
         def update_global_volume_over_time_chart(selected_server):
-            layout = {
-                'template': 'plotly_dark',
-                'title': "Volume Over Time",
-                'height': 400,
-                'paper_bgcolor': '#242120',
-                'plot_bgcolor': '#242120',
-                'font': {'color': '#ffffff'},
-                'xaxis': {'title': 'Time'},
-                'yaxis': {'title': 'Value'},
-                'barmode': 'group',
-            }
             if selected_server is None:
-                return {"data": [go.Bar(x=[0], y=[0])], "layout": layout}
+                return {"data": [go.Bar(x=[0], y=[0])], "layout": self.layout}
 
             server_key = self.get_server_key(selected_server)
             df = self.backend.performance_reports[server_key].executors_df.copy()
             if df.empty:
-                return {"data": [go.Bar(x=[0], y=[0])], "layout": layout}
+                return {"data": [go.Bar(x=[0], y=[0])], "layout": self.layout}
 
             fig = go.Figure()
             df = df[["close_timestamp", "filled_amount_quote"]].sort_values("close_timestamp").reset_index()
@@ -647,7 +636,7 @@ class DashCallbacks:
                     marker_color=self.all_time_color,
                 )
             )
-            return {"data": fig.data, "layout": layout}
+            return {"data": fig.data, "layout": self.layout}
 
     def explore_analysis_callbacks(self, selected_server_input):
         self.treemap_input_callbacks(selected_server_input)
@@ -668,7 +657,7 @@ class DashCallbacks:
             if df.empty:
                 return [], []
             options = [{'label': col, 'value': col} for col in df.columns]
-            initial_values = ["controller_name", "connector_name", "trading_pair", "database_id", "controller_id"]
+            initial_values = ["controller_name", "connector_name", "trading_pair"]
             return options, initial_values
 
         @self.app.callback(
@@ -677,16 +666,10 @@ class DashCallbacks:
             selected_server_input
         )
         def update_treemap_callback(selected_path, selected_server):
-            fig_layout = {
-                'template': 'plotly_dark',
-                'title': "Trading Treemap",
-                'height': 800,
-                'paper_bgcolor': '#242120',
-                'plot_bgcolor': '#242120',
-                'font': {'color': '#ffffff'},
-                'xaxis': {'title': 'Time'},
-                'yaxis': {'title': 'Value'},
-            }
+            fig_layout = self.layout.copy()
+            fig_layout["title"] = "Trading Treemap"
+            fig_layout["height"] = 800
+
             if selected_server is None:
                 return {"data": [], "layout": fig_layout}
 
@@ -705,82 +688,32 @@ class DashCallbacks:
             return {"data": fig.data, "layout": fig.layout}
 
     def treemap_output_callbacks(self, selected_server_input):
-        treemap_selection_input = Input("treemap-graph", "clickData")
-
         @self.app.callback(
             Output("explore-pnl", "children"),
-            treemap_selection_input,
-            selected_server_input,
-            Input("path-dropdown", "value"),
-        )
-        def calculate_pnl_callback(selected_value, selected_server, path_value):
-            if selected_server is None:
-                return 0.
-
-            server_key = self.get_server_key(selected_server)
-            df = self.backend.performance_reports[server_key].trades_df.copy()
-
-            if df.empty or not path_value:
-                return 0.
-
-            if selected_value is None:
-                return 0.
-
-            # click_ids = selected_value["points"][0]["id"].split("/")
-            # hierarchy_level = len(click_ids)
-            # columns = path_value[:hierarchy_level]
-            # conditions = True
-            # for column, value in zip(columns, click_ids):
-            #     conditions &= df[column] == value
-            # df = df[conditions]
-            return 0.
-
-        @self.app.callback(
             Output("explore-volume", "children"),
-            treemap_selection_input,
-            selected_server_input,
-            Input("path-dropdown", "value"),
-        )
-        def calculate_volume_callback(selected_value, selected_server, path_value):
-            if selected_server is None:
-                return 0.
-
-            server_key = self.get_server_key(selected_server)
-            df = self.backend.performance_reports[server_key].trades_df.copy()
-
-            if df.empty or not path_value:
-                return 0.
-
-            if selected_value is None:
-                return f'$ {df["quote_amount"].sum():.2f}'
-
-            click_ids = selected_value["points"][0]["id"].split("/")
-            hierarchy_level = len(click_ids)
-            columns = path_value[:hierarchy_level]
-            conditions = True
-            for column, value in zip(columns, click_ids):
-                conditions &= df[column] == value
-            df = df[conditions]
-            return f'$ {df["quote_amount"].sum():.2f}'
-
-        @self.app.callback(
             Output("explore-trades", "children"),
-            treemap_selection_input,
+            Output("explore-max-draw-down", "children"),
+            Output("explore-sharpe-ratio", "children"),
+            Output("explore-total-duration", "children"),
+            Output("explore-date-range", "children"),
+            Output("explore-pnl-over-time", "figure"),
             selected_server_input,
+            Input("treemap-graph", "clickData"),
             Input("path-dropdown", "value"),
+            Input("options-checklist", "value"),
         )
-        def calculate_n_trades_callback(selected_value, selected_server, path_value):
+        def treemap_click_callbacks(selected_server, selected_value, path_value, viz_options):
+            fig_layout = self.layout.copy()
+            fig_layout["xaxis"] = {'title': 'N° Trades'}
             if selected_server is None:
-                return 0
+                return "-", "-", "-", "-", "-", "-", "-", {"data": [], "layout": self.layout}
 
             server_key = self.get_server_key(selected_server)
             df = self.backend.performance_reports[server_key].trades_df.copy()
+            performance_report = self.backend.performance_reports[server_key]
 
-            if df.empty or not path_value:
-                return 0
-
-            if selected_value is None:
-                return len(df)
+            if df.empty or not path_value or selected_value is None:
+                return "-", "-", "-", "-", "-", "-", "-", {"data": [], "layout": self.layout}
 
             click_ids = selected_value["points"][0]["id"].split("/")
             hierarchy_level = len(click_ids)
@@ -789,136 +722,64 @@ class DashCallbacks:
             for column, value in zip(columns, click_ids):
                 conditions &= df[column] == value
             df = df[conditions]
+
+            grouped_dfs, pnl_df = performance_report.calculate_pnl_universe(df, path_value)
+
+            pnl = pnl_metric(pnl_df)
+            volume = volume_metric(df)
+            n_trades = n_trades_metric(df)
+            max_draw_down = max_draw_down_metric(pnl_df)
+            sharpe_ratio = sharpe_ratio_metric(pnl_df)
+            total_duration = total_duration_metric(df)
+            date_range = date_range_metric(df)
+
+            explode = "explode" in viz_options
+            atemporal = "atemporal" in viz_options
+            fig = performance_report.plot_pnl_universe_figure(grouped_dfs, pnl_df, layout=self.layout,
+                                                              explode=explode, atemporal=atemporal)
+            return (
+                pnl,
+                volume,
+                n_trades,
+                max_draw_down,
+                sharpe_ratio,
+                total_duration,
+                date_range,
+                {"data": fig.data, "layout": fig.layout})
+
+        def pnl_metric(df: pd.DataFrame):
+            return f"$ {df['total_pnl'].iloc[-1]:.2f}"
+
+        def volume_metric(df: pd.DataFrame):
+            return f'$ {df['quote_amount'].sum():.2f}'
+
+        def n_trades_metric(df: pd.DataFrame):
             return len(df)
 
-        @self.app.callback(
-            Output("explore-max-draw-down", "children"),
-            treemap_selection_input,
-            selected_server_input,
-            Input("path-dropdown", "value"),
-        )
-        def calculate_max_draw_down_callback(selected_value, selected_server, path_value):
-            if selected_server is None:
-                return 0
+        def max_draw_down_metric(df: pd.DataFrame):
+            return f"{0.:.2f} %"
 
-            server_key = self.get_server_key(selected_server)
-            df = self.backend.performance_reports[server_key].trades_df.copy()
+        def sharpe_ratio_metric(df: pd.DataFrame):
+            return f"{1.0:.2f}"
 
-            if df.empty or not path_value:
-                return 0
+        def total_duration_metric(df: pd.DataFrame):
+            time_series = df["timestamp"].copy()
+            total_seconds = time_series.max() - time_series.min()
 
-            if selected_value is None:
-                return 0
+            days = total_seconds // 86400
+            hours = (total_seconds % 86400) // 3600
+            minutes = (total_seconds % 3600) // 60
 
-            click_ids = selected_value["points"][0]["id"].split("/")
-            hierarchy_level = len(click_ids)
-            columns = path_value[:hierarchy_level]
-            conditions = True
-            for column, value in zip(columns, click_ids):
-                conditions &= df[column] == value
-            df = df[conditions]
-            return 0
+            parts = []
+            if days > 0:
+                parts.append(f"{days}d")
+            if hours > 0 or days > 0:
+                parts.append(f"{hours}h")
+            parts.append(f"{minutes}m")
 
-        @self.app.callback(
-            Output("explore-sharpe-ratio", "children"),
-            treemap_selection_input,
-            selected_server_input,
-            Input("path-dropdown", "value"),
-        )
-        def calculate_sharpe_ratio_callback(selected_value, selected_server, path_value):
-            if selected_server is None:
-                return 0
+            return " ".join(parts)
 
-            server_key = self.get_server_key(selected_server)
-            df = self.backend.performance_reports[server_key].trades_df.copy()
-
-            if df.empty or not path_value:
-                return 0
-
-            if selected_value is None:
-                return 0
-
-            click_ids = selected_value["points"][0]["id"].split("/")
-            hierarchy_level = len(click_ids)
-            columns = path_value[:hierarchy_level]
-            conditions = True
-            for column, value in zip(columns, click_ids):
-                conditions &= df[column] == value
-            df = df[conditions]
-            return 0
-
-        @self.app.callback(
-            Output("explore-total-duration", "children"),
-            treemap_selection_input,
-            selected_server_input,
-            Input("path-dropdown", "value"),
-        )
-        def calculate_total_duration_callback(selected_value, selected_server, path_value):
-            def total_duration(time_series: pd.Series):
-                total_seconds = time_series.max() - time_series.min()
-
-                days = total_seconds // 86400
-                hours = (total_seconds % 86400) // 3600
-                minutes = (total_seconds % 3600) // 60
-
-                parts = []
-                if days > 0:
-                    parts.append(f"{days}d")
-                if hours > 0 or days > 0:
-                    parts.append(f"{hours}h")
-                parts.append(f"{minutes}m")
-
-                return " ".join(parts)
-
-            if selected_server is None:
-                return "-"
-
-            server_key = self.get_server_key(selected_server)
-            df = self.backend.performance_reports[server_key].trades_df.copy()
-
-            if df.empty or not path_value:
-                return "-"
-
-            if selected_value is None:
-                return total_duration(df["timestamp"])
-
-            click_ids = selected_value["points"][0]["id"].split("/")
-            hierarchy_level = len(click_ids)
-            columns = path_value[:hierarchy_level]
-            conditions = True
-            for column, value in zip(columns, click_ids):
-                conditions &= df[column] == value
-            df = df[conditions]
-            return total_duration(df["timestamp"])
-
-        @self.app.callback(
-            Output("explore-date-range", "children"),
-            treemap_selection_input,
-            selected_server_input,
-            Input("path-dropdown", "value"),
-        )
-        def calculate_date_range_callback(selected_value, selected_server, path_value):
-            if selected_server is None:
-                return "-"
-
-            server_key = self.get_server_key(selected_server)
-            df = self.backend.performance_reports[server_key].trades_df.copy()
-
-            if df.empty or not path_value:
-                return "-"
-
-            min_time = pd.to_datetime(df["timestamp"].min(), unit="s").strftime("%Y-%m-%d")
-            max_time = pd.to_datetime(df["timestamp"].max(), unit="s").strftime("%Y-%m-%d")
-            if selected_value is None:
-                return f"{min_time} -> {max_time}"
-
-            click_ids = selected_value["points"][0]["id"].split("/")
-            hierarchy_level = len(click_ids)
-            columns = path_value[:hierarchy_level]
-            conditions = True
-            for column, value in zip(columns, click_ids):
-                conditions &= df[column] == value
-            df = df[conditions]
+        def date_range_metric(df: pd.DataFrame):
             min_time = pd.to_datetime(df["timestamp"].min(), unit="s").strftime("%Y-%m-%d")
             max_time = pd.to_datetime(df["timestamp"].max(), unit="s").strftime("%Y-%m-%d")
             return f"{min_time} -> {max_time}"

@@ -2,8 +2,8 @@ import logging
 import os
 import warnings
 
-from typing import Dict, Any, List
-
+from typing import Dict, Any, List, Tuple
+import plotly.graph_objects as go
 import numpy as np
 import pandas as pd
 
@@ -185,7 +185,7 @@ class PerformanceReport:
                                         performance_df["cumulative_fee_paid_quote"].cumsum())
         cols_to_show = ["datetime", "database_id", "executor_id", "connector_name", "base_amount", "quote_amount",
                         "base_amount_open", "base_amount_close", "cum_base_open", "cum_base_close", "cum_quote_open",
-                        "cum_quote_close", "break_even_open", "break_even_close", "realized_pnl", "unrealized_pnl",
+                        "cum_quote_close", "price", "break_even_open", "break_even_close", "realized_pnl", "unrealized_pnl",
                         "global_pnl"]
         return performance_df[cols_to_show]
 
@@ -208,3 +208,63 @@ class PerformanceReport:
             "side": "long" if side == 1 else "short",
         }
         return metrics
+
+    def calculate_pnl_universe(self,
+                               df: pd.DataFrame,
+                               groupers: List[str]):
+        full_groupers = groupers + ['side'] if 'side' not in groupers else groupers
+        grouped_dfs = {}
+
+        for keys, group_df in df.groupby(full_groupers, dropna=False):
+            side = group_df["side"].iloc[0]
+            processed = self.calculate_performance_fields(group_df, side=side).copy()
+            processed.reset_index(drop=True, inplace=True)
+
+            group_key = keys if isinstance(keys, tuple) else (keys,)  # just in case a single value is selected
+            grouped_dfs[group_key] = processed
+
+        total_pnl = pd.DataFrame()
+        for group_key, processed in grouped_dfs.items():
+            group_key_str = "_".join(map(str, group_key))
+            processed["group_key_str"] = group_key_str
+            total_pnl = pd.concat([total_pnl, processed])
+
+        total_pnl = total_pnl.dropna(subset=["global_pnl"])
+        pnl_df = total_pnl.sort_values("datetime").pivot_table(values="global_pnl",
+                                                               index="datetime",
+                                                               columns="group_key_str",
+                                                               aggfunc="max").ffill().fillna(0.)
+        pnl_df["total_pnl"] = pnl_df.sum(axis=1)
+
+        return grouped_dfs, pnl_df
+
+    @staticmethod
+    def plot_pnl_universe_figure(grouped_dfs: Dict[Tuple[str], pd.DataFrame],
+                                 pnl_df: pd.DataFrame,
+                                 height: int = 400,
+                                 explode: bool = False,
+                                 atemporal: bool = True,
+                                 layout: Dict[str, Any] = None):
+        if atemporal:
+            pnl_df.reset_index(drop=False, inplace=True)
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=pnl_df.index,
+            y=pnl_df["total_pnl"],
+            name="Total Cum PnL",
+            line_color="white"
+        ))
+
+        if explode:
+            for group_key, processed in grouped_dfs.items():
+                fig.add_trace(
+                    go.Scatter(
+                        x=processed.index if atemporal else processed["datetime"],
+                        y=processed.loc[:, "global_pnl"],  # the single column
+                        name=processed["group_key_str"].iloc[0],
+                    )
+                )
+        if layout is not None:
+            fig.layout = layout
+        return fig
