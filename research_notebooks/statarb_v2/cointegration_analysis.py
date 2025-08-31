@@ -193,7 +193,7 @@ class CointegrationAnalyzer:
                                                                    db_name="quants_lab")
         coint_docs_df = pd.DataFrame(cointegration_docs)
         last_timestamp = coint_docs_df["timestamp"].max()
-        coint_docs_df = coint_docs_df[coint_docs_df["timestamp"] == last_timestamp]
+        coint_docs_df = coint_docs_df[coint_docs_df["timestamp"] == last_timestamp].head(3)
         coint_docs_df["datetime"] = pd.to_datetime(coint_docs_df["timestamp"], unit="s")
         coint_docs_df["lookback_days_datetime"] = pd.to_datetime(coint_docs_df["lookback_days_timestamp"], unit="s")
         coint_docs_df.sort_values(by="coint_value", inplace=True)
