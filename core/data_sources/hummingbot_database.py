@@ -9,8 +9,8 @@ from hummingbot.connector.connector_base import TradeType
 
 
 class HummingbotDatabase:
-    def __init__(self, db_name: str, root_path: str = "", instance_name: str = None, load_cache_data: bool = False):
-        self.db_path = os.path.join(root_path, "data", "live_bot_databases", db_name)
+    def __init__(self, db_name: str, root_path: str = "", instance_name: str = None, server_name: str = "", load_cache_data: bool = False):
+        self.db_path = os.path.join(root_path, "data", "live_bot_databases", server_name, db_name)
         self.root_path = root_path
         self.db_name = db_name
         self.instance_name = instance_name
