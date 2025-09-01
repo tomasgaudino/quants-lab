@@ -26,11 +26,15 @@ async def main(config: Dict[str, Any], root_path: str):
     candles = await get_candles(config, root_path)
     frames = generate_frames(candles, config)
     fig = make_subplots(
-        rows=1, cols=2,
-        shared_yaxes=True,
-        horizontal_spacing=0.06,
+        rows=2, cols=2,
+        row_heights=[0.7, 0.3],
+        shared_xaxes=False,
+        shared_yaxes='rows',
         column_widths=[0.7, 0.3],
+        horizontal_spacing=0.06,
+        vertical_spacing=0.08
     )
+
     if frames:
         fig.add_traces(frames[0].data)
     fig.frames = frames
@@ -38,6 +42,7 @@ async def main(config: Dict[str, Any], root_path: str):
     fig.update_layout(
         height=800,
         yaxis=dict(title="Price", range=[candles.data.close.min(), candles.data.close.max()]),
+        yaxis2=dict(title="VWAP", range=[candles.data.close.min(), candles.data.close.max()]),
         updatemenus=[{
             "type": "buttons",
             "buttons": [{
@@ -74,12 +79,14 @@ async def get_candles(config: Dict[str, Any], root_path: str):
 
 def generate_frames(candles: Candles, config: Dict[str, Any]):
     frames = []
+    vwap_timeline = []
     window_size = config["window_size"]
     window_step = config["window_step"]
     candles_df: pd.DataFrame = candles.data.copy()
     for i in range(0, len(candles_df) - window_size, window_step):
         window = candles_df.iloc[i:i+window_size]
         processed_data = simulate_processed_data(window, config)
+        vwap_timeline.append((window.index[-1], processed_data["VWAP"]))
         start_price, end_price = get_price_limits(processed_data)
         prices = processed_data["PRICE_LEVELS"]
         sizes = processed_data["VOLUME_LEVELS"] / sum(processed_data["VOLUME_LEVELS"])
@@ -93,7 +100,8 @@ def generate_frames(candles: Candles, config: Dict[str, Any]):
         else:
             filtered_prices = [(price, size) for price, size in zip(prices, sizes)]
 
-        frame = frame_price_with_distribution_and_amounts(window, filtered_prices, processed_data)
+        frame = frame_price_with_distribution_and_amounts(window, filtered_prices, processed_data, vwap_timeline,
+                                                          config["only_min_max"])
         frames.append(frame)
     return frames
 
@@ -143,6 +151,8 @@ def simulate_processed_data(window: pd.DataFrame, config: Dict[str, Any]):
 
     first_vwap_std = config["first_vwap_std"]
     second_vwap_std = config["second_vwap_std"]
+    third_vwap_std = config["third_vwap_std"]
+
     processed_data = {
         "WINDOW": window,
         "SKEW_LABEL": skew_label,
@@ -158,6 +168,8 @@ def simulate_processed_data(window: pd.DataFrame, config: Dict[str, Any]):
         "FIRST_UPPER_VWAP_LEVEL": vwap + first_vwap_std * std,
         "SECOND_LOWER_VWAP_LEVEL": vwap - second_vwap_std * std,
         "SECOND_UPPER_VWAP_LEVEL": vwap + second_vwap_std * std,
+        "THIRD_LOWER_VWAP_LEVEL": vwap - third_vwap_std * std,
+        "THIRD_UPPER_VWAP_LEVEL": vwap + third_vwap_std * std,
     }
     return processed_data
 
@@ -165,14 +177,14 @@ def simulate_processed_data(window: pd.DataFrame, config: Dict[str, Any]):
 def get_price_limits(processed_data: Dict[str, Any]):
     if processed_data["N_PEAKS"] == 1:
         if processed_data["KURTOSIS_LABEL"] == "Leptokurtic":
-            start_price = processed_data["FIRST_LOWER_VWAP_LEVEL"] * 0.5
-            end_price = processed_data["FIRST_UPPER_VWAP_LEVEL"] * 0.5
-        elif processed_data["KURTOSIS_LABEL"] == "Platykurtic":
-            start_price = processed_data["SECOND_LOWER_VWAP_LEVEL"]
-            end_price = processed_data["SECOND_UPPER_VWAP_LEVEL"]
-        else:
             start_price = processed_data["FIRST_LOWER_VWAP_LEVEL"]
             end_price = processed_data["FIRST_UPPER_VWAP_LEVEL"]
+        elif processed_data["KURTOSIS_LABEL"] == "Platykurtic":
+            start_price = processed_data["THIRD_LOWER_VWAP_LEVEL"]
+            end_price = processed_data["THIRD_UPPER_VWAP_LEVEL"]
+        else:
+            start_price = processed_data["SECOND_LOWER_VWAP_LEVEL"]
+            end_price = processed_data["SECOND_UPPER_VWAP_LEVEL"]
     elif processed_data["N_PEAKS"] > 1:
         start_price = min(processed_data["PEAKS_PRICES"])
         end_price = max(processed_data["PEAKS_PRICES"])
@@ -181,8 +193,11 @@ def get_price_limits(processed_data: Dict[str, Any]):
     return start_price, end_price
 
 
-def frame_price_with_distribution_and_amounts(window: pd.DataFrame, prices: List[Tuple[float, float]],
-                                              processed_data: Dict[str, Any]) -> go.Frame:
+def frame_price_with_distribution_and_amounts(window: pd.DataFrame,
+                                              prices: List[Tuple[float, float]],
+                                              processed_data: Dict[str, Any],
+                                              vwap_timeline: List[Tuple[pd.Timestamp, float]],
+                                              only_min_max: bool = True) -> go.Frame:
     # Column 1: Line chart of close prices
     trace_close = go.Scatter(
         x=window.index,
@@ -201,8 +216,12 @@ def frame_price_with_distribution_and_amounts(window: pd.DataFrame, prices: List
         marker=dict(color="rgba(0, 150, 255, 0.6)"),
         xaxis="x2",
     )
-
     # Shapes for horizontal dashed lines across both charts
+    prices_values = [price for price, _ in prices]
+    if only_min_max:
+        min_price = min(prices_values)
+        max_price = max(prices_values)
+        prices_values = [min_price, max_price]
     shapes = [
         dict(
             type="line",
@@ -212,11 +231,29 @@ def frame_price_with_distribution_and_amounts(window: pd.DataFrame, prices: List
             y0=price, y1=price,
             line=dict(color="gray", dash="dash", width=1),
         )
-        for price, _ in prices
+        for price in prices_values
+    ] + [
+        dict(
+            type="line",
+            xref="paper",
+            yref="y",
+            x0=0, x1=1,
+            y0=vwap_timeline[-1][1], y1=vwap_timeline[-1][1],
+            line=dict(color="green", width=2)
+        )
     ]
+    trace_vwap_line = go.Scatter(
+        x=[t for t, _ in vwap_timeline],
+        y=[v for _, v in vwap_timeline],
+        mode="lines+markers",
+        name="VWAP (accum)",
+        line=dict(color="orange"),
+        xaxis="x3",
+        yaxis="y3"
+    )
 
     return go.Frame(
-        data=[trace_close, trace_volume_dist],
+        data=[trace_close, trace_volume_dist, trace_vwap_line],
         name=str(window.index[0]),
         layout=go.Layout(shapes=shapes)
     )
@@ -228,7 +265,8 @@ if __name__ == "__main__":
     conf = {
         "peak_prominence": 0.1,
         "first_vwap_std": 1.,
-        "second_vwap_std": 2.,
+        "second_vwap_std": 1.5,
+        "third_vwap_std": 2.,
         "window_size": 60 * 24 * 14,  # 14 days
         "window_step": 60 * 4,  # 4 hours
         "candles_config": {
@@ -241,6 +279,7 @@ if __name__ == "__main__":
         },
         "tick_size": 0.001,
         "total_amount_quote": 1000.0,
-        "n_bins": 20,
+        "n_bins": 30,
+        "only_min_max": True,
     }
     asyncio.run(main(conf, root))

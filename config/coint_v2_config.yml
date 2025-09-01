@@ -11,8 +11,8 @@ tasks:
         connector_name: binance_perpetual
         interval: 15m
         days: 15
-        batch_size: 20
-        sleep_time: 5.0
+        batch_size: 10
+        sleep_time: 10.0
       update_candles: true
       volume_quantile: 0.75
       lookback_days: 15
