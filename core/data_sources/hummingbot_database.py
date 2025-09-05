@@ -34,6 +34,7 @@ class HummingbotDatabase:
         orders_status = self._get_table_status(self.get_orders)
         order_status_status = self._get_table_status(self.get_order_status)
         executors_status = self._get_table_status(self.get_executors_data)
+        controllers_status = self._get_table_status(self.get_controller_data)
         general_status = all(status == "Correct" for status in
                              [trade_fill_status, orders_status, order_status_status, executors_status])
         status = {"db_name": self.db_name,
@@ -43,6 +44,7 @@ class HummingbotDatabase:
                   "orders": orders_status,
                   "order_status": order_status_status,
                   "executors": executors_status,
+                  "controllers": controllers_status,
                   "general_status": general_status
                   }
         return status
