@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Esquema Conceptual del Proyecto - Market Features Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        h2 {
+            color: #2c3e50;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            font-size: 2em;
+            border-left: 5px solid #3498db;
+            padding-left: 15px;
+        }
+
+        h3 {
+            color: #34495e;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        h4 {
+            color: #555;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+
+        p {
+            margin-bottom: 15px;
+            font-size: 1.05em;
+        }
+
+        .overview {
+            background-color: #ecf0f1;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 30px;
+            border-left: 4px solid #3498db;
+        }
+
+        .mermaid {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            margin: 30px 0;
+            border: 1px solid #ddd;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 0.95em;
+        }
+
+        table th {
+            background-color: #3498db;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        table td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        table tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        table tr:hover {
+            background-color: #e8f4f8;
+        }
+
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9em;
+            color: #c7254e;
+        }
+
+        pre {
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: #333;
+        }
+
+        .section-divider {
+            border-top: 2px solid #ecf0f1;
+            margin: 50px 0 30px 0;
+        }
+
+        .emoji {
+            font-size: 1.2em;
+        }
+
+        ul, ol {
+            margin-left: 30px;
+            margin-bottom: 15px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        .note-box {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .note-box strong {
+            color: #856404;
+        }
+
+        .feature-category {
+            background-color: #e8f5e9;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #4caf50;
+        }
+
+        .structure-tree {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9em;
+            overflow-x: auto;
+        }
+
+        .json-example {
+            background-color: #263238;
+            color: #aed581;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+
+        .reference-link {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .reference-link:hover {
+            text-decoration: underline;
+        }
+
+        @media print {
+            body {
+                background-color: white;
+            }
+            .container {
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Esquema Conceptual del Proyecto - Market Features Analysis</h1>
+
+        <div class="overview">
+            <h2>Visión General</h2>
+            <p>Este proyecto analiza características de mercado (market features) a partir de tres fuentes de datos principales: Candles (OHLCV), Order Book snapshots y Trades. El sistema calcula 39 indicadores diferentes agrupados en tres categorías y genera reportes en Excel y PDF.</p>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <h2>Diagrama de Flujo</h2>
+        <div class="mermaid">
+%%{init: {'theme':'base', 'themeVariables': { 'fontSize':'16px', 'primaryTextColor':'#000000', 'secondaryTextColor':'#000000', 'tertiaryTextColor':'#000000'}}}%%
+graph TB
+    %% Fuentes de Datos
+    subgraph "FUENTES DE DATOS"
+        A1[📊 Candles<br/>timestamp, OHLCV<br/>volume, n_trades]
+        A2[📖 Order Book<br/>timestamp, best_bid<br/>best_ask, sizes]
+        A3[💱 Trades<br/>timestamp, price<br/>size, side]
+    end
+
+    %% Loader
+    B["🔄 MarketLoader<br/>load_all()"]
+
+    A1 --> B
+    A2 --> B
+    A3 --> B
+
+    %% Processing
+    subgraph "PROCESAMIENTO"
+        C["⚙️ compute_all_features()<br/>Resampling: 3h windows"]
+
+        subgraph "CÁLCULO DE FEATURES"
+            D1[💰 PRICE FEATURES<br/>11 indicadores]
+            D2[📚 ORDER BOOK FEATURES<br/>16 indicadores]
+            D3[📈 TRADES FEATURES<br/>12 indicadores]
+        end
+    end
+
+    B --> C
+    C --> D1
+    C --> D2
+    C --> D3
+
+    %% Price Features Detail
+    subgraph "PRICE INDICATORS"
+        P1["last_mid_price: close"]
+        P2["price_avg: mean(close)"]
+        P3["price_std: std(close)"]
+        P4["price_diff_pct_t_1: pct_change"]
+        P5["price_velocity: ΔP/ΔT"]
+        P6["high, low: max/min"]
+        P7["return_volatility: std(log returns)"]
+        P8["microtrend_slope: linregress"]
+        P9["velocity_ratio: short/long"]
+
+        P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> P7 --> P8 --> P9
+    end
+
+    D1 -.-> P1
+
+    %% Order Book Features Detail
+    subgraph "ORDER BOOK INDICATORS"
+        O1["mid_price: mean(bid+ask)/2"]
+        O2["spread_abs: mean(ask-bid)"]
+        O3["spread_rel: spread/mid_price"]
+        O4["depth_5/10/20: liquidity levels"]
+        O5["liquidity_imbalance: (bid-ask)/total"]
+        O6["market_pressure_index"]
+        O7["queue_dynamics: change rate"]
+        O8["slippage_cost: impact"]
+        O9["order_book_entropy: Shannon"]
+
+        O1 --> O2 --> O3 --> O4 --> O5 --> O6 --> O7 --> O8 --> O9
+    end
+
+    D2 -.-> O1
+
+    %% Trades Features Detail
+    subgraph "TRADES INDICATORS"
+        T1["total_volume: sum(size)"]
+        T2["buy/sell_volume: by side"]
+        T3["taker_aggr_ratio: buy/sell"]
+        T4["vwap: weighted avg price"]
+        T5["volume_imbalance: (buy-sell)/total"]
+        T6["vol_signature: P90/median"]
+        T7["volume_burst_score: z-score"]
+        T8["trade_flow_imbalance: rolling"]
+        T9["inter_arrival_time: mean time"]
+
+        T1 --> T2 --> T3 --> T4 --> T5 --> T6 --> T7 --> T8 --> T9
+    end
+
+    D3 -.-> T1
+
+    %% Output
+    subgraph "REPORTES"
+        E1[📊 Excel<br/>5 sheets:<br/>Features, Impresión<br/>Estadísticas, Correlaciones<br/>Configuración]
+        E2[📄 PDF<br/>Portada<br/>6 Gráficos principales<br/>Tablas estadísticas]
+    end
+
+    D1 --> E1 & E2
+    D2 --> E1 & E2
+    D3 --> E1 & E2
+
+    %% Styling
+    classDef dataSource fill:#e1f5ff,stroke:#0078d4,stroke-width:2px
+    classDef processor fill:#fff4ce,stroke:#f9a825,stroke-width:2px
+    classDef features fill:#e8f5e9,stroke:#4caf50,stroke-width:2px
+    classDef indicators fill:#f3e5f5,stroke:#9c27b0,stroke-width:1px
+    classDef output fill:#ffe0b2,stroke:#ff6f00,stroke-width:2px
+
+    class A1,A2,A3 dataSource
+    class B,C processor
+    class D1,D2,D3 features
+    class P1,P2,P3,P4,P5,P6,P7,P8,P9,O1,O2,O3,O4,O5,O6,O7,O8,O9,T1,T2,T3,T4,T5,T6,T7,T8,T9 indicators
+    class E1,E2 output
+        </div>
+
+        <div class="section-divider"></div>
+
+        <h2>1. Fuentes de Datos</h2>
+
+        <h3><span class="emoji">📊</span> Candles (OHLCV)</h3>
+        <p><strong>Archivo:</strong> <code>binance_USDT-BRL_1m_candles.csv</code></p>
+
+        <p><strong>Campos:</strong></p>
+        <ul>
+            <li><code>timestamp</code> (epoch seconds) → convertido a datetime UTC</li>
+            <li><code>open</code>, <code>high</code>, <code>low</code>, <code>close</code> (precio)</li>
+            <li><code>volume</code> (volumen en base currency)</li>
+            <li><code>quote_asset_volume</code></li>
+            <li><code>n_trades</code> (número de trades)</li>
+            <li><code>taker_buy_base_volume</code>, <code>taker_buy_quote_volume</code></li>
+        </ul>
+
+        <p><strong>Loader:</strong> <code>MarketLoader.load_candles(path, interval="1m")</code></p>
+
+        <h3><span class="emoji">📖</span> Order Book Snapshots</h3>
+        <p><strong>Archivos:</strong> <code>binance_USDT-BRL_order_book_snapshots_YYYY-MM-DD.txt</code></p>
+
+        <p><strong>Formato JSON por línea:</strong></p>
+        <div class="json-example">
+<pre>{
+  "ts": 1760106864.0,
+  "bids": [[price, size], ...],
+  "asks": [[price, size], ...]
+}</pre>
+        </div>
+
+        <p><strong>Campos extraídos:</strong></p>
+        <ul>
+            <li><code>timestamp</code> (datetime UTC)</li>
+            <li><code>best_bid</code> (max price in bids)</li>
+            <li><code>best_bid_size</code></li>
+            <li><code>best_ask</code> (min price in asks)</li>
+            <li><code>best_ask_size</code></li>
+        </ul>
+
+        <p><strong>Loader:</strong> <code>MarketLoader.load_orderbooks(folder)</code></p>
+
+        <h3><span class="emoji">💱</span> Trades</h3>
+        <p><strong>Archivos:</strong> <code>binance_USDT-BRL_trades_YYYY-MM-DD.txt</code></p>
+
+        <p><strong>Formato JSON por línea:</strong></p>
+        <div class="json-example">
+<pre>{
+  "ts": 1760106864.009,
+  "price": 5.4485,
+  "q_base": 10.5,
+  "side": "buy"
+}</pre>
+        </div>
+
+        <p><strong>Campos extraídos:</strong></p>
+        <ul>
+            <li><code>timestamp</code> (datetime UTC)</li>
+            <li><code>price</code> (float)</li>
+            <li><code>size</code> (base quantity, from q_base)</li>
+            <li><code>side</code> ('buy' or 'sell')</li>
+        </ul>
+
+        <p><strong>Loader:</strong> <code>MarketLoader.load_trades(folder)</code></p>
+
+        <div class="section-divider"></div>
+
+        <h2>2. Procesamiento</h2>
+
+        <h3>MarketLoader</h3>
+        <p><strong>Ubicación:</strong> <code>features/market_loader.py</code></p>
+
+        <p><strong>Función principal:</strong></p>
+        <pre><code>candles, orderbook, trades = market_loader.load_all(
+    candles_path,
+    orderbooks_folder,
+    trades_folder
+)</code></pre>
+
+        <p><strong>Características:</strong></p>
+        <ul>
+            <li>Carga las 3 fuentes de datos</li>
+            <li>Filtra por <code>date_range</code> si se especifica</li>
+            <li>Ordena por timestamp</li>
+            <li>Normaliza formatos (epoch → datetime UTC)</li>
+        </ul>
+
+        <h3>Cálculo de Features</h3>
+        <p><strong>Ubicación:</strong> <code>src/market_features.py</code></p>
+
+        <p><strong>Función principal:</strong></p>
+        <pre><code>features_df = compute_all_features(
+    candles,
+    orderbook,
+    trades,
+    config,
+    resample=True
+)</code></pre>
+
+        <p><strong>Parámetros de configuración</strong> (<code>config/market_report.yml</code>):</p>
+        <pre><code>resampling:
+  interval: "3h"        # Ventana temporal
+  label: "end"          # Alineación de ventana
+  include_partial: false
+
+price:
+  short_window: 15      # Ventana corta para velocidad
+  long_window: 60       # Ventana larga para velocidad
+
+order_book:
+  standard_order_size: 1000.0  # Para slippage cost
+
+trades:
+  volume_window: 50     # Detección de burst
+  flow_window: 20       # Trade flow imbalance</code></pre>
+
+        <div class="section-divider"></div>
+
+        <h2>3. Features Calculadas (39 total)</h2>
+
+        <div class="feature-category">
+            <h3><span class="emoji">💰</span> PRICE FEATURES (11 indicadores)</h3>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th>Fórmula</th>
+                    <th>Descripción</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>last_mid_price</code></td>
+                    <td><code>close[-1]</code></td>
+                    <td>Último precio de cierre</td>
+                </tr>
+                <tr>
+                    <td><code>price_avg</code></td>
+                    <td><code>mean(close)</code></td>
+                    <td>Precio promedio en ventana</td>
+                </tr>
+                <tr>
+                    <td><code>price_std</code></td>
+                    <td><code>std(close)</code></td>
+                    <td>Desviación estándar del precio</td>
+                </tr>
+                <tr>
+                    <td><code>price_diff_pct_t_1</code></td>
+                    <td><code>((close[-1]/close[-2]) - 1) × 100</code></td>
+                    <td>Cambio % respecto a período anterior</td>
+                </tr>
+                <tr>
+                    <td><code>price_velocity</code></td>
+                    <td><code>(close[-1] - close[-n_steps-1]) / n_steps</code></td>
+                    <td>Velocidad del precio (ΔP/ΔT)</td>
+                </tr>
+                <tr>
+                    <td><code>high</code></td>
+                    <td><code>max(high)</code></td>
+                    <td>Precio máximo en ventana</td>
+                </tr>
+                <tr>
+                    <td><code>low</code></td>
+                    <td><code>min(low)</code></td>
+                    <td>Precio mínimo en ventana</td>
+                </tr>
+                <tr>
+                    <td><code>delta_high_low</code></td>
+                    <td><code>high - low</code></td>
+                    <td>Rango de precios</td>
+                </tr>
+                <tr>
+                    <td><code>return_volatility</code></td>
+                    <td><code>std(log(close[1:]/close[:-1]))</code></td>
+                    <td>Volatilidad de log-returns</td>
+                </tr>
+                <tr>
+                    <td><code>microtrend_slope</code></td>
+                    <td><code>linregress(x, y).slope</code></td>
+                    <td>Pendiente de tendencia reciente</td>
+                </tr>
+                <tr>
+                    <td><code>short_vs_long_velocity_ratio</code></td>
+                    <td><code>short_vel / long_vel</code></td>
+                    <td>Ratio de velocidades corto/largo plazo</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p><strong>Código:</strong> <code>src/market_features.py:204-284</code></p>
+
+        <div class="feature-category">
+            <h3><span class="emoji">📚</span> ORDER BOOK FEATURES (16 indicadores)</h3>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th>Fórmula</th>
+                    <th>Descripción</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>mid_price</code></td>
+                    <td><code>mean((best_bid + best_ask) / 2)</code></td>
+                    <td>Precio medio promedio</td>
+                </tr>
+                <tr>
+                    <td><code>best_bid</code></td>
+                    <td><code>best_bid[-1]</code></td>
+                    <td>Última mejor oferta de compra</td>
+                </tr>
+                <tr>
+                    <td><code>best_ask</code></td>
+                    <td><code>best_ask[-1]</code></td>
+                    <td>Última mejor oferta de venta</td>
+                </tr>
+                <tr>
+                    <td><code>spread_abs</code></td>
+                    <td><code>mean(best_ask - best_bid)</code></td>
+                    <td>Spread absoluto promedio</td>
+                </tr>
+                <tr>
+                    <td><code>spread_rel</code></td>
+                    <td><code>spread_abs / mid_price</code></td>
+                    <td>Spread relativo (%)</td>
+                </tr>
+                <tr>
+                    <td><code>depth_5</code></td>
+                    <td><code>(avg_bid_size + avg_ask_size) × 5</code></td>
+                    <td>Profundidad 5 niveles (proxy)</td>
+                </tr>
+                <tr>
+                    <td><code>depth_10</code></td>
+                    <td><code>(avg_bid_size + avg_ask_size) × 10</code></td>
+                    <td>Profundidad 10 niveles (proxy)</td>
+                </tr>
+                <tr>
+                    <td><code>depth_20</code></td>
+                    <td><code>(avg_bid_size + avg_ask_size) × 20</code></td>
+                    <td>Profundidad 20 niveles (proxy)</td>
+                </tr>
+                <tr>
+                    <td><code>total_bid_liquidity</code></td>
+                    <td><code>sum(best_bid_size)</code></td>
+                    <td>Liquidez total lado compra</td>
+                </tr>
+                <tr>
+                    <td><code>total_ask_liquidity</code></td>
+                    <td><code>sum(best_ask_size)</code></td>
+                    <td>Liquidez total lado venta</td>
+                </tr>
+                <tr>
+                    <td><code>liquidity_imbalance</code></td>
+                    <td><code>(bid_liq - ask_liq) / (bid_liq + ask_liq)</code></td>
+                    <td>Desbalance de liquidez</td>
+                </tr>
+                <tr>
+                    <td><code>market_pressure_index</code></td>
+                    <td><code>liquidity_imbalance / (1 + spread_rel)</code></td>
+                    <td>Índice de presión de mercado</td>
+                </tr>
+                <tr>
+                    <td><code>queue_dynamics</code></td>
+                    <td><code>(bid_changes + ask_changes) / (2 × (n-1))</code></td>
+                    <td>Tasa de cambios en cola</td>
+                </tr>
+                <tr>
+                    <td><code>order_book_convexity</code></td>
+                    <td><code>1 / (1 + std(bid_sizes) + std(ask_sizes))</code></td>
+                    <td>Concentración de liquidez</td>
+                </tr>
+                <tr>
+                    <td><code>slippage_cost</code></td>
+                    <td><code>(order_size / avg_depth) × spread_rel × 100</code></td>
+                    <td>Costo estimado de slippage (%)</td>
+                </tr>
+                <tr>
+                    <td><code>order_book_entropy</code></td>
+                    <td><code>-sum(p × log2(p))</code></td>
+                    <td>Entropía de Shannon de liquidez</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p><strong>Código:</strong> <code>src/market_features.py:291-409</code></p>
+
+        <div class="feature-category">
+            <h3><span class="emoji">📈</span> TRADES FEATURES (12 indicadores)</h3>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th>Fórmula</th>
+                    <th>Descripción</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>total_volume</code></td>
+                    <td><code>sum(size)</code></td>
+                    <td>Volumen total negociado</td>
+                </tr>
+                <tr>
+                    <td><code>buy_volume</code></td>
+                    <td><code>sum(size[side=='buy'])</code></td>
+                    <td>Volumen de compras</td>
+                </tr>
+                <tr>
+                    <td><code>sell_volume</code></td>
+                    <td><code>sum(size[side=='sell'])</code></td>
+                    <td>Volumen de ventas</td>
+                </tr>
+                <tr>
+                    <td><code>taker_aggressiveness_ratio</code></td>
+                    <td><code>buy_volume / sell_volume</code></td>
+                    <td>Ratio de agresividad compradores</td>
+                </tr>
+                <tr>
+                    <td><code>vwap</code></td>
+                    <td><code>sum(price × size) / sum(size)</code></td>
+                    <td>Precio promedio ponderado por volumen</td>
+                </tr>
+                <tr>
+                    <td><code>volume_imbalance</code></td>
+                    <td><code>(buy_vol - sell_vol) / (buy_vol + sell_vol)</code></td>
+                    <td>Desbalance de volumen</td>
+                </tr>
+                <tr>
+                    <td><code>microstructural_volume_signature</code></td>
+                    <td><code>percentile(size, 90) / median(size)</code></td>
+                    <td>Ratio P90/mediana de trades</td>
+                </tr>
+                <tr>
+                    <td><code>volume_burst_score</code></td>
+                    <td><code>(current_vol - mean_vol) / std_vol</code></td>
+                    <td>Z-score de volumen (detección bursts)</td>
+                </tr>
+                <tr>
+                    <td><code>average_trade_size</code></td>
+                    <td><code>mean(size)</code></td>
+                    <td>Tamaño promedio de trade</td>
+                </tr>
+                <tr>
+                    <td><code>volume_time_distribution</code></td>
+                    <td><code>gini_coefficient(vol_by_bin)</code></td>
+                    <td>Concentración temporal (Gini)</td>
+                </tr>
+                <tr>
+                    <td><code>trade_flow_imbalance</code></td>
+                    <td><code>rolling_imbalance[-1]</code></td>
+                    <td>Desbalance en ventana móvil</td>
+                </tr>
+                <tr>
+                    <td><code>inter_arrival_time</code></td>
+                    <td><code>mean(timestamp.diff())</code></td>
+                    <td>Tiempo promedio entre trades (s)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p><strong>Código:</strong> <code>src/market_features.py:416-555</code></p>
+
+        <div class="section-divider"></div>
+
+        <h2>4. Reportes Generados</h2>
+
+        <h3><span class="emoji">📊</span> Excel Report</h3>
+        <p><strong>Archivo:</strong> <code>output/market_features_YYYYMMDD_HHMMSS.xlsx</code></p>
+
+        <p><strong>5 hojas:</strong></p>
+        <ol>
+            <li><strong>Features</strong> - Datos técnicos (time × features)</li>
+            <li><strong>Reporte Impresión</strong> - Formato pivotado (features × time) en español</li>
+            <li><strong>Estadísticas</strong> - Estadísticas descriptivas en español</li>
+            <li><strong>Correlaciones</strong> - Matriz de correlación entre features</li>
+            <li><strong>Configuración</strong> - Parámetros utilizados en el cálculo</li>
+        </ol>
+
+        <h3><span class="emoji">📄</span> PDF Report</h3>
+        <p><strong>Archivo:</strong> <code>output/market_features_report_YYYYMMDD_HHMMSS.pdf</code></p>
+
+        <p><strong>3 páginas:</strong></p>
+        <ol>
+            <li><strong>Portada</strong> - Información del reporte (par, exchange, período, configuración)</li>
+            <li><strong>Visualizaciones</strong> - 6 gráficos principales:
+                <ul>
+                    <li>Evolución del Precio</li>
+                    <li>Volatilidad de Retornos</li>
+                    <li>Spread Relativo (bps)</li>
+                    <li>Desbalance de Liquidez</li>
+                    <li>Volumen de Trading</li>
+                    <li>Desbalance de Volumen</li>
+                </ul>
+            </li>
+            <li><strong>Estadísticas</strong> - Tabla con estadísticas descriptivas de features principales</li>
+        </ol>
+
+        <div class="section-divider"></div>
+
+        <h2>5. Estructura del Proyecto</h2>
+
+        <div class="structure-tree">
+<pre>research_notebooks/eda_strategies/rlmm/
+├── config/
+│   └── market_report.yml          # Configuración de features
+├── data/
+│   ├── candles/                   # Archivos CSV de candles
+│   ├── order_book/                # Snapshots JSON de order book
+│   └── trades/                    # Trades JSON
+├── docs/
+│   ├── 00_Esquema_del_proyecto.md # Documentación Markdown
+│   └── 00_Esquema_del_proyecto.html # Este documento
+├── features/
+│   └── market_loader.py           # Carga de datos
+├── output/
+│   ├── *.xlsx                     # Reportes Excel generados
+│   └── *.pdf                      # Reportes PDF generados
+├── src/
+│   ├── __init__.py
+│   ├── config_loader.py           # Carga de configuración
+│   ├── market_features.py         # Cálculo de features
+│   └── utils/
+│       ├── __init__.py
+│       └── validators.py          # Validaciones
+└── quick_excel_report.ipynb       # Notebook principal</pre>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <h2>6. Uso Básico</h2>
+
+        <pre><code>from features.market_loader import MarketLoader
+from src.market_features import compute_all_features
+import yaml
+
+# 1. Configurar
+exchange = "binance"
+trading_pair = "USDT-BRL"
+date_range = ("2025-10-11", "2025-10-12")
+
+# 2. Cargar datos
+market_loader = MarketLoader(
+    exchange=exchange,
+    trading_pair=trading_pair,
+    date_range=date_range
+)
+candles, orderbook, trades = market_loader.load_all(
+    candles_path,
+    orderbook_path,
+    trades_path
+)
+
+# 3. Cargar configuración
+with open('config/market_report.yml', 'r') as f:
+    config = yaml.safe_load(f)
+
+# 4. Calcular features
+features_df = compute_all_features(
+    candles,
+    orderbook,
+    trades,
+    config,
+    resample=True
+)
+
+# 5. Exportar
+features_df.to_excel('output/features.xlsx')</code></pre>
+
+        <div class="section-divider"></div>
+
+        <h2>7. Referencias</h2>
+
+        <ul>
+            <li><strong>MarketLoader:</strong> <a href="../features/market_loader.py" class="reference-link">features/market_loader.py</a></li>
+            <li><strong>Feature Calculation:</strong> <a href="../src/market_features.py" class="reference-link">src/market_features.py</a></li>
+            <li><strong>Configuration:</strong> <a href="../config/market_report.yml" class="reference-link">config/market_report.yml</a></li>
+            <li><strong>Main Notebook:</strong> <a href="../quick_excel_report.ipynb" class="reference-link">quick_excel_report.ipynb</a></li>
+        </ul>
+
+        <div class="section-divider"></div>
+
+        <h2>Notas Técnicas</h2>
+
+        <div class="note-box">
+            <ul>
+                <li><strong>Resampling:</strong> Las features se calculan en ventanas de tiempo configurables (default: 3h)</li>
+                <li><strong>Timezone:</strong> Todos los timestamps se manejan en UTC</li>
+                <li><strong>Validación:</strong> Se requiere que las 3 fuentes de datos tengan overlap temporal</li>
+                <li><strong>Proxies:</strong> Algunas features usan aproximaciones cuando no hay datos completos (ej: depth_5/10/20)</li>
+                <li><strong>Error Handling:</strong> Ventanas sin datos se omiten del resultado final</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'base',
+            themeVariables: {
+                fontSize: '16px',
+                primaryTextColor: '#000000',
+                secondaryTextColor: '#000000',
+                tertiaryTextColor: '#000000'
+            }
+        });
+    </script>
+</body>
+</html>
