@@ -1,7 +1,7 @@
 # Ignorar todos los archivos en data/ y sus subdirectorios
 data/*
 data/**/*
-data/real/data/**
+data/real_data/*
 
 # Ignorar todos los archivos en output/
 output/*
