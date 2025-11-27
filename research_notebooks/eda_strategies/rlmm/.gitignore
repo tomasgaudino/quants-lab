@@ -1,0 +1,11 @@
+# Ignorar todos los archivos en data/ y sus subdirectorios
+data/*
+data/**/*
+data/real/data/**
+
+# Ignorar todos los archivos en output/
+output/*
+
+# Mantener los directorios vacíos (Git necesita al menos un archivo)
+# Los .gitkeep se crearán para mantener la estructura
+!output/.gitkeep
