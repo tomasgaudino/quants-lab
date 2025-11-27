@@ -1,0 +1,48 @@
+# ============================================================================
+# MARKET FEATURES - CONFIGURATION
+# ============================================================================
+
+metadata:
+  version: "2.0.0"
+  description: "Market features calculation for BRL-USDT (or any pair)"
+  author: "Quants Lab"
+
+# ----------------------------------------------------------------------------
+# RESAMPLING CONFIGURATION
+# ----------------------------------------------------------------------------
+resampling:
+  # Main parameter: time window for feature calculation
+  # Examples: "1H" (1 hour), "30T" (30 minutes), "3H" (3 hours), "1D" (1 day)
+  interval: "3h"
+
+  # Alignment of time windows
+  # Options: "start", "end", "center"
+  label: "end"
+
+  # Whether to include incomplete periods at the end
+  include_partial: false
+
+# ----------------------------------------------------------------------------
+# PRICE FEATURES PARAMETERS
+# ----------------------------------------------------------------------------
+price:
+  # Windows for velocity calculations (in number of periods/candles)
+  short_window: 15   # Short-term velocity window
+  long_window: 60    # Long-term velocity window
+
+# ----------------------------------------------------------------------------
+# ORDER BOOK FEATURES PARAMETERS
+# ----------------------------------------------------------------------------
+order_book:
+  # Standard order size for slippage cost calculation (in base currency)
+  standard_order_size: 1000.0
+
+# ----------------------------------------------------------------------------
+# TRADES FEATURES PARAMETERS
+# ----------------------------------------------------------------------------
+trades:
+  # Window size for volume burst detection (in number of trades)
+  volume_window: 50
+
+  # Window size for trade flow imbalance (in number of trades)
+  flow_window: 20
