@@ -9,12 +9,34 @@ class EnrichedHummingbotDatabase(HummingbotDatabase):
     Controllers, Executors, Orders, and TradeFills data with JSON field expansion.
     """
 
-    def get_enriched_trade_fills(self) -> pd.DataFrame:
+    def get_trade_fills(self, config_file_path=None, start_date=None, end_date=None):
         """
-        Get TradeFills enriched with controller_id and relevant metadata.
+        Override parent method to NOT calculate cumulative PnL.
+        We'll recalculate it properly grouped by controller_id in get_enriched_trade_fills.
 
         Returns:
-            DataFrame with trade fills including controller_id, executor metadata, and controller config keys
+            DataFrame with basic trade fills (no cumulative calculations)
+        """
+        float_cols = ["amount", "price", "trade_fee_in_quote"]
+        query = "SELECT * FROM TradeFill"
+        trade_fills = pd.read_sql_query(query, self.connection)
+
+        # Basic conversions only
+        trade_fills[float_cols] = trade_fills[float_cols] / 1e6
+        trade_fills["net_amount"] = trade_fills['amount'] * trade_fills['trade_type'].apply(
+            lambda x: 1 if x == 'BUY' else -1)
+        trade_fills["net_amount_quote"] = trade_fills['net_amount'] * trade_fills['price']
+        trade_fills["timestamp"] = pd.to_datetime(trade_fills["timestamp"], unit="ms")
+        trade_fills["quote_volume"] = trade_fills["price"] * trade_fills["amount"]
+
+        return trade_fills
+
+    def get_enriched_trade_fills(self) -> pd.DataFrame:
+        """
+        Get TradeFills enriched with controller_id and accurate PnL calculations.
+
+        Returns:
+            DataFrame with trade fills including controller_id, executor metadata, and accurate PnL metrics
         """
         # Load base tables
         trade_fills = self.get_trade_fills()
@@ -24,7 +46,6 @@ class EnrichedHummingbotDatabase(HummingbotDatabase):
 
         # Expand executor custom_info to extract order_ids
         # Create a mapping of order_id -> executor_id -> controller_id
-        # Using explode for better performance with large datasets
         order_mapping_records = []
         for _, executor in executors.iterrows():
             custom_info = executor['custom_info']
@@ -49,6 +70,9 @@ class EnrichedHummingbotDatabase(HummingbotDatabase):
             on='order_id',
             how='left'
         )
+
+        # Sort by timestamp for accurate cumulative calculations
+        enriched_trades = enriched_trades.sort_values('timestamp')
 
         # Merge with executors to get additional executor data
         executor_cols = ['id', 'timestamp', 'type', 'close_type', 'close_timestamp',
@@ -107,6 +131,44 @@ class EnrichedHummingbotDatabase(HummingbotDatabase):
             how='left',
             suffixes=('', '_controller')
         )
+
+        # Recalculate PnL metrics grouped by controller_id
+        # Group by controller_id, market, symbol for proper cumulative calculations
+        groupers = ["controller_id", "market", "symbol"]
+
+        # For trades without controller_id (orphans), use original grouping
+        has_controller = enriched_trades['controller_id'].notna()
+        orphan_trades = enriched_trades[~has_controller].copy()
+        controller_trades = enriched_trades[has_controller].copy()
+
+        # Calculate metrics for controller trades
+        if not controller_trades.empty:
+            controller_trades["cum_fees_in_quote"] = controller_trades.groupby(groupers)["trade_fee_in_quote"].cumsum()
+            controller_trades["cum_net_amount"] = controller_trades.groupby(groupers)["net_amount"].cumsum()
+            controller_trades["unrealized_trade_pnl"] = -1 * controller_trades.groupby(groupers)["net_amount_quote"].cumsum()
+            controller_trades["inventory_cost"] = controller_trades["cum_net_amount"] * controller_trades["price"]
+            controller_trades["realized_trade_pnl"] = controller_trades["unrealized_trade_pnl"] + controller_trades["inventory_cost"]
+            controller_trades["net_realized_pnl"] = controller_trades["realized_trade_pnl"] - controller_trades["cum_fees_in_quote"]
+            controller_trades["realized_pnl"] = controller_trades.groupby(groupers)["net_realized_pnl"].diff()
+            controller_trades["gross_pnl"] = controller_trades.groupby(groupers)["realized_trade_pnl"].diff()
+            controller_trades["trade_fee"] = controller_trades.groupby(groupers)["cum_fees_in_quote"].diff()
+
+        # Calculate metrics for orphan trades (use original grouping)
+        if not orphan_trades.empty:
+            orphan_groupers = ["config_file_path", "market", "symbol"]
+            orphan_trades["cum_fees_in_quote"] = orphan_trades.groupby(orphan_groupers)["trade_fee_in_quote"].cumsum()
+            orphan_trades["cum_net_amount"] = orphan_trades.groupby(orphan_groupers)["net_amount"].cumsum()
+            orphan_trades["unrealized_trade_pnl"] = -1 * orphan_trades.groupby(orphan_groupers)["net_amount_quote"].cumsum()
+            orphan_trades["inventory_cost"] = orphan_trades["cum_net_amount"] * orphan_trades["price"]
+            orphan_trades["realized_trade_pnl"] = orphan_trades["unrealized_trade_pnl"] + orphan_trades["inventory_cost"]
+            orphan_trades["net_realized_pnl"] = orphan_trades["realized_trade_pnl"] - orphan_trades["cum_fees_in_quote"]
+            orphan_trades["realized_pnl"] = orphan_trades.groupby(orphan_groupers)["net_realized_pnl"].diff()
+            orphan_trades["gross_pnl"] = orphan_trades.groupby(orphan_groupers)["realized_trade_pnl"].diff()
+            orphan_trades["trade_fee"] = orphan_trades.groupby(orphan_groupers)["cum_fees_in_quote"].diff()
+
+        # Combine back
+        enriched_trades = pd.concat([controller_trades, orphan_trades], ignore_index=True)
+        enriched_trades = enriched_trades.sort_values('timestamp').reset_index(drop=True)
 
         return enriched_trades
 
