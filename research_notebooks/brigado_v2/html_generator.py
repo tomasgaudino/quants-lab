@@ -488,7 +488,7 @@ def generate_consolidation_report_html(
     output_paths: dict
 ) -> Path:
     """
-    Generate HTML consolidation report.
+    Generate HTML consolidation report with detailed controller breakdown.
 
     Args:
         output_path: Path to save HTML file
@@ -532,10 +532,39 @@ def generate_consolidation_report_html(
         table {{ width: 100%; border-collapse: collapse; margin: 20px 0; background: white; }}
         th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #e0e0e0; }}
         th {{ background: #f8f9fa; font-weight: 600; color: #555; text-transform: uppercase; font-size: 0.85em; }}
+        tr.bot-row {{ background: white; font-weight: 500; cursor: pointer; transition: background 0.2s; }}
+        tr.bot-row:hover {{ background: #f0f4ff; }}
+        tr.bot-row td {{ border-bottom: 2px solid #667eea; }}
+        tr.controller-row {{ background: #fafbfc; font-size: 0.9em; color: #666; }}
+        tr.controller-row td {{ padding-left: 40px; border-bottom: 1px solid #f0f0f0; }}
+        tr.controller-row:hover {{ background: #f5f7fa; }}
+        tr.orphan-row {{ background: #fff3cd; }}
+        tr.orphan-row:hover {{ background: #ffe69c; }}
+        .expand-icon {{ display: inline-block; margin-right: 8px; transition: transform 0.3s; font-size: 0.8em; color: #667eea; }}
+        .expand-icon.expanded {{ transform: rotate(90deg); }}
+        .controller-row.hidden {{ display: none; }}
         .success-badge {{ background: #10b981; color: white; padding: 8px 16px; border-radius: 20px; display: inline-block; font-weight: 600; }}
+        .controller-badge {{ display: inline-block; background: #e0e7ff; color: #4c51bf; padding: 2px 8px; border-radius: 10px; font-size: 0.75em; margin-left: 8px; font-weight: 600; }}
+        .coverage-badge {{ display: inline-block; background: #10b981; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.75em; margin-left: 8px; }}
+        .coverage-badge.warning {{ background: #f59e0b; }}
+        .coverage-badge.error {{ background: #ef4444; }}
         .footer {{ background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 0.9em; }}
         .timestamp {{ color: #eee; font-size: 0.9em; margin-top: 10px; }}
     </style>
+    <script>
+        function toggleControllers(botIndex) {{
+            const rows = document.querySelectorAll('.controller-row[data-bot="' + botIndex + '"]');
+            const icon = document.querySelector('.expand-icon[data-bot="' + botIndex + '"]');
+
+            rows.forEach(row => {{
+                row.classList.toggle('hidden');
+            }});
+
+            if (icon) {{
+                icon.classList.toggle('expanded');
+            }}
+        }}
+    </script>
 </head>
 <body>
     <div class="container">
@@ -592,23 +621,115 @@ def generate_consolidation_report_html(
                         <div class="subtitle">quote currency</div>
                     </div>
                 </div>
+
+                <h3 style="margin-top: 30px; margin-bottom: 15px;">Per-Bot Performance <span style="font-size: 0.8em; color: #666; font-weight: normal;">(Click to expand controllers)</span></h3>
                 <table>
                     <thead>
-                        <tr><th>Bot</th><th>Trades</th><th>Volume</th><th>Controllers</th></tr>
+                        <tr>
+                            <th>Bot / Controller</th>
+                            <th>Trades</th>
+                            <th>Total Amount</th>
+                            <th>Total Volume</th>
+                            <th>Trading Pairs</th>
+                        </tr>
                     </thead>
                     <tbody>
 """
 
-    # Add bot rows
+    # Add bot rows with controller breakdowns
+    bot_index = 0
     for bot in sorted(trades_with_ctrl['source_bot'].unique()):
         bot_trades = trades_with_ctrl[trades_with_ctrl['source_bot'] == bot]
-        bot_controllers = controllers_data[controllers_data['source_bot'] == bot]['id'].nunique()
+        pairs = ', '.join(bot_trades['symbol'].unique())
+
+        # Get controllers for this bot
+        bot_controllers = controllers_data[controllers_data['source_bot'] == bot]['id'].tolist()
+
+        # Calculate coverage for this bot
+        bot_coverage = (bot_trades['controller_id'].notna().sum() / len(bot_trades)) * 100 if len(bot_trades) > 0 else 0
+
+        num_controllers = len(bot_controllers)
+        controller_badge = f'<span class="controller-badge">{num_controllers} controllers</span>' if num_controllers > 0 else ''
+
+        # Color code coverage badge
+        if bot_coverage >= 80:
+            coverage_class = ""
+        elif bot_coverage >= 50:
+            coverage_class = " warning"
+        else:
+            coverage_class = " error"
+        coverage_badge = f'<span class="coverage-badge{coverage_class}">{bot_coverage:.0f}% mapped</span>'
+
         html_content += f"""
-                        <tr>
-                            <td><strong>{bot}</strong></td>
-                            <td>{len(bot_trades):,}</td>
-                            <td>{bot_trades['quote_volume'].sum():,.0f}</td>
-                            <td>{bot_controllers}</td>
+                        <tr class="bot-row" onclick="toggleControllers({bot_index})">
+                            <td>
+                                <span class="expand-icon" data-bot="{bot_index}">▶</span>
+                                <strong>{bot}</strong>
+                                {controller_badge}
+                                {coverage_badge}
+                            </td>
+                            <td><strong>{len(bot_trades):,}</strong></td>
+                            <td><strong>{bot_trades['amount'].sum():,.2f}</strong></td>
+                            <td><strong>{bot_trades['quote_volume'].sum():,.0f}</strong></td>
+                            <td>{pairs}</td>
+                        </tr>"""
+
+        # Add controller breakdown rows
+        if num_controllers > 0:
+            for controller_id in bot_controllers:
+                ctrl_trades = bot_trades[bot_trades['controller_id'] == controller_id]
+
+                if len(ctrl_trades) > 0:
+                    ctrl_pairs = ', '.join(ctrl_trades['symbol'].unique())
+                    html_content += f"""
+                        <tr class="controller-row hidden" data-bot="{bot_index}">
+                            <td>↳ {controller_id}</td>
+                            <td>{len(ctrl_trades):,}</td>
+                            <td>{ctrl_trades['amount'].sum():,.2f}</td>
+                            <td>{ctrl_trades['quote_volume'].sum():,.0f}</td>
+                            <td>{ctrl_pairs}</td>
+                        </tr>"""
+                else:
+                    html_content += f"""
+                        <tr class="controller-row hidden" data-bot="{bot_index}">
+                            <td>↳ {controller_id}</td>
+                            <td colspan="4" style="color: #999; font-style: italic;">No trades mapped</td>
+                        </tr>"""
+
+        bot_index += 1
+
+    # Add Orphan Trades section
+    orphan_trades = trades_with_ctrl[trades_with_ctrl['controller_id'].isna()]
+    if len(orphan_trades) > 0:
+        # Group orphan trades by trading pair
+        orphan_by_pair = orphan_trades.groupby('symbol').agg({
+            'order_id': 'count',
+            'amount': 'sum',
+            'quote_volume': 'sum'
+        }).reset_index()
+        orphan_by_pair.columns = ['symbol', 'trades', 'amount', 'volume']
+
+        html_content += f"""
+                        <tr class="orphan-row" style="cursor: default;">
+                            <td>
+                                <strong>⚠️ Orphan Trades</strong>
+                                <span class="controller-badge" style="background: #ffc107; color: #000;">{len(orphan_trades):,} unmapped</span>
+                            </td>
+                            <td><strong>{len(orphan_trades):,}</strong></td>
+                            <td><strong>{orphan_trades['amount'].sum():,.2f}</strong></td>
+                            <td><strong>{orphan_trades['quote_volume'].sum():,.0f}</strong></td>
+                            <td>Multiple pairs</td>
+                        </tr>"""
+
+        # Add breakdown by trading pair
+        for _, pair_row in orphan_by_pair.iterrows():
+            html_content += f"""
+                        <tr class="controller-row" style="background: #fffbf0;">
+                            <td style="padding-left: 40px;">↳ {pair_row['symbol']}</td>
+                            <td>{int(pair_row['trades']):,}</td>
+                            <td>{pair_row['amount']:,.2f}</td>
+                            <td>{pair_row['volume']:,.0f}</td>
+                            <td>{pair_row['symbol']}</td>
                         </tr>"""
 
     html_content += """
@@ -618,6 +739,7 @@ def generate_consolidation_report_html(
         </div>
         <div class="footer">
             <p>Generated by Brigado v2 Data Consolidator</p>
+            <p style="margin-top: 5px; font-size: 0.85em;">Click bot rows to expand/collapse controller details</p>
         </div>
     </div>
 </body>
