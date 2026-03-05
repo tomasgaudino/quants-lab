@@ -516,40 +516,41 @@ def generate_consolidation_report_html(
     <title>Data Consolidation Report - {datetime.now().strftime('%Y-%m-%d %H:%M')}</title>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; padding: 20px; }}
-        .container {{ max-width: 1400px; margin: 0 auto; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow: hidden; }}
-        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px; text-align: center; }}
-        .header h1 {{ font-size: 2.5em; margin-bottom: 10px; font-weight: 600; }}
-        .header p {{ font-size: 1.1em; opacity: 0.9; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #eaecef; background: #0b0e11; padding: 20px; }}
+        .container {{ max-width: 1400px; margin: 0 auto; background: #1e2329; border-radius: 8px; border: 1px solid #2b3139; overflow: hidden; }}
+        .header {{ background: linear-gradient(135deg, #2b3139 0%, #1e2329 100%); border-bottom: 3px solid #f0b90b; color: #f0b90b; padding: 40px; text-align: center; }}
+        .header h1 {{ font-size: 2.5em; margin-bottom: 10px; font-weight: 600; text-shadow: 0 0 20px rgba(240, 185, 11, 0.3); }}
+        .header p {{ font-size: 1.1em; color: #848e9c; }}
         .content {{ padding: 40px; }}
         .section {{ margin-bottom: 40px; }}
-        .section h2 {{ font-size: 1.8em; margin-bottom: 20px; color: #667eea; border-bottom: 2px solid #667eea; padding-bottom: 10px; }}
+        .section h2 {{ font-size: 1.8em; margin-bottom: 20px; color: #f0b90b; border-bottom: 2px solid #f0b90b; padding-bottom: 10px; }}
         .metrics-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }}
-        .metric-card {{ background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 25px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }}
-        .metric-card h3 {{ font-size: 0.9em; color: #666; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }}
-        .metric-card .value {{ font-size: 2em; font-weight: bold; color: #333; }}
-        .metric-card .subtitle {{ font-size: 0.9em; color: #777; margin-top: 5px; }}
-        table {{ width: 100%; border-collapse: collapse; margin: 20px 0; background: white; }}
-        th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #e0e0e0; }}
-        th {{ background: #f8f9fa; font-weight: 600; color: #555; text-transform: uppercase; font-size: 0.85em; }}
-        tr.bot-row {{ background: white; font-weight: 500; cursor: pointer; transition: background 0.2s; }}
-        tr.bot-row:hover {{ background: #f0f4ff; }}
-        tr.bot-row td {{ border-bottom: 2px solid #667eea; }}
-        tr.controller-row {{ background: #fafbfc; font-size: 0.9em; color: #666; }}
-        tr.controller-row td {{ padding-left: 40px; border-bottom: 1px solid #f0f0f0; }}
-        tr.controller-row:hover {{ background: #f5f7fa; }}
-        tr.orphan-row {{ background: #fff3cd; }}
-        tr.orphan-row:hover {{ background: #ffe69c; }}
-        .expand-icon {{ display: inline-block; margin-right: 8px; transition: transform 0.3s; font-size: 0.8em; color: #667eea; }}
+        .metric-card {{ background: #2b3139; padding: 25px; border-radius: 8px; border: 1px solid #3d4551; transition: border-color 0.3s; }}
+        .metric-card:hover {{ border-color: #f0b90b; }}
+        .metric-card h3 {{ font-size: 0.85em; color: #848e9c; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }}
+        .metric-card .value {{ font-size: 2em; font-weight: bold; color: #f0b90b; }}
+        .metric-card .subtitle {{ font-size: 0.9em; color: #b7bdc6; margin-top: 5px; }}
+        table {{ width: 100%; border-collapse: collapse; margin: 20px 0; background: #2b3139; border-radius: 8px; overflow: hidden; }}
+        th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #3d4551; }}
+        th {{ background: #1e2329; font-weight: 600; color: #f0b90b; text-transform: uppercase; font-size: 0.85em; }}
+        tr.bot-row {{ background: #2b3139; font-weight: 500; cursor: pointer; transition: background 0.2s; }}
+        tr.bot-row:hover {{ background: #3d4551; }}
+        tr.bot-row td {{ border-bottom: 2px solid #f0b90b; }}
+        tr.controller-row {{ background: #1e2329; font-size: 0.9em; color: #b7bdc6; }}
+        tr.controller-row td {{ padding-left: 40px; border-bottom: 1px solid #3d4551; }}
+        tr.controller-row:hover {{ background: #2b3139; }}
+        tr.orphan-row {{ background: #2b2024; border: 1px solid #f6465d; }}
+        tr.orphan-row:hover {{ background: #3d2d32; }}
+        .expand-icon {{ display: inline-block; margin-right: 8px; transition: transform 0.3s; font-size: 0.8em; color: #f0b90b; }}
         .expand-icon.expanded {{ transform: rotate(90deg); }}
         .controller-row.hidden {{ display: none; }}
-        .success-badge {{ background: #10b981; color: white; padding: 8px 16px; border-radius: 20px; display: inline-block; font-weight: 600; }}
-        .controller-badge {{ display: inline-block; background: #e0e7ff; color: #4c51bf; padding: 2px 8px; border-radius: 10px; font-size: 0.75em; margin-left: 8px; font-weight: 600; }}
-        .coverage-badge {{ display: inline-block; background: #10b981; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.75em; margin-left: 8px; }}
-        .coverage-badge.warning {{ background: #f59e0b; }}
-        .coverage-badge.error {{ background: #ef4444; }}
-        .footer {{ background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 0.9em; }}
-        .timestamp {{ color: #eee; font-size: 0.9em; margin-top: 10px; }}
+        .success-badge {{ background: #f0b90b; color: #0b0e11; padding: 8px 16px; border-radius: 4px; display: inline-block; font-weight: 600; }}
+        .controller-badge {{ display: inline-block; background: #2b3139; color: #f0b90b; border: 1px solid #f0b90b; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; margin-left: 8px; font-weight: 600; }}
+        .coverage-badge {{ display: inline-block; background: #0ecb81; color: #0b0e11; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; margin-left: 8px; font-weight: 600; }}
+        .coverage-badge.warning {{ background: #f0b90b; }}
+        .coverage-badge.error {{ background: #f6465d; }}
+        .footer {{ background: #1e2329; border-top: 1px solid #2b3139; padding: 20px; text-align: center; color: #848e9c; font-size: 0.9em; }}
+        .timestamp {{ color: #848e9c; font-size: 0.9em; margin-top: 10px; }}
     </style>
     <script>
         function toggleControllers(botIndex) {{
@@ -713,7 +714,7 @@ def generate_consolidation_report_html(
                         <tr class="orphan-row" style="cursor: default;">
                             <td>
                                 <strong>⚠️ Orphan Trades</strong>
-                                <span class="controller-badge" style="background: #ffc107; color: #000;">{len(orphan_trades):,} unmapped</span>
+                                <span class="controller-badge" style="background: #f6465d; color: #fff; border-color: #f6465d;">{len(orphan_trades):,} unmapped</span>
                             </td>
                             <td><strong>{len(orphan_trades):,}</strong></td>
                             <td><strong>{orphan_trades['amount'].sum():,.2f}</strong></td>
@@ -724,8 +725,8 @@ def generate_consolidation_report_html(
         # Add breakdown by trading pair
         for _, pair_row in orphan_by_pair.iterrows():
             html_content += f"""
-                        <tr class="controller-row" style="background: #fffbf0;">
-                            <td style="padding-left: 40px;">↳ {pair_row['symbol']}</td>
+                        <tr class="controller-row" style="background: #2b3139;">
+                            <td style="padding-left: 40px; color: #f0b90b;">↳ {pair_row['symbol']}</td>
                             <td>{int(pair_row['trades']):,}</td>
                             <td>{pair_row['amount']:,.2f}</td>
                             <td>{pair_row['volume']:,.0f}</td>
@@ -750,3 +751,364 @@ def generate_consolidation_report_html(
         f.write(html_content)
 
     return output_path
+
+
+def generate_index_html(output_dir: Path, metadata: dict = None) -> Path:
+    """
+    Generate index.html navigation page for all reports.
+
+    Args:
+        output_dir: Directory containing the reports (data_sources)
+        metadata: Optional consolidation metadata for stats
+
+    Returns:
+        Path to generated index.html
+    """
+    from datetime import datetime
+    import os
+
+    # Check which reports exist
+    reports = {
+        'consolidation': output_dir / 'consolidation_report.html',
+        'market_analysis': output_dir / 'market_analysis_report.html',
+    }
+
+    available_reports = {name: path for name, path in reports.items() if path.exists()}
+
+    # Get file sizes and modification times
+    report_info = {}
+    for name, path in available_reports.items():
+        stat = path.stat()
+        report_info[name] = {
+            'path': path.name,
+            'size_kb': stat.st_size / 1024,
+            'modified': datetime.fromtimestamp(stat.st_mtime)
+        }
+
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brigado v2 - Performance Reports</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #eaecef;
+            background: #0b0e11;
+            min-height: 100vh;
+            padding: 40px 20px;
+        }}
+
+        .container {{
+            max-width: 1200px;
+            margin: 0 auto;
+        }}
+
+        .header {{
+            text-align: center;
+            color: #f0b90b;
+            margin-bottom: 50px;
+        }}
+
+        .header h1 {{
+            font-size: 3em;
+            margin-bottom: 10px;
+            font-weight: 700;
+            text-shadow: 0 0 20px rgba(240, 185, 11, 0.3);
+        }}
+
+        .header p {{
+            font-size: 1.2em;
+            color: #848e9c;
+        }}
+
+        .stats-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }}
+
+        .stat-card {{
+            background: #1e2329;
+            padding: 25px;
+            border-radius: 8px;
+            border: 1px solid #2b3139;
+            text-align: center;
+            transition: border-color 0.3s;
+        }}
+
+        .stat-card:hover {{
+            border-color: #f0b90b;
+        }}
+
+        .stat-card h3 {{
+            font-size: 0.85em;
+            color: #848e9c;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }}
+
+        .stat-card .value {{
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #f0b90b;
+        }}
+
+        .reports-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+        }}
+
+        .report-card {{
+            background: #1e2329;
+            border-radius: 8px;
+            border: 1px solid #2b3139;
+            overflow: hidden;
+            transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }}
+
+        .report-card:hover {{
+            transform: translateY(-5px);
+            border-color: #f0b90b;
+            box-shadow: 0 8px 25px rgba(240, 185, 11, 0.15);
+        }}
+
+        .report-header {{
+            background: linear-gradient(135deg, #2b3139 0%, #1e2329 100%);
+            border-bottom: 2px solid #f0b90b;
+            color: #f0b90b;
+            padding: 30px;
+            text-align: center;
+        }}
+
+        .report-header .icon {{
+            font-size: 3em;
+            margin-bottom: 10px;
+            filter: drop-shadow(0 0 10px rgba(240, 185, 11, 0.3));
+        }}
+
+        .report-header h2 {{
+            font-size: 1.5em;
+            margin-bottom: 5px;
+            color: #eaecef;
+        }}
+
+        .report-header p {{
+            color: #848e9c;
+            font-size: 0.9em;
+        }}
+
+        .report-body {{
+            padding: 25px;
+        }}
+
+        .report-meta {{
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #2b3139;
+        }}
+
+        .meta-item {{
+            display: flex;
+            flex-direction: column;
+        }}
+
+        .meta-label {{
+            font-size: 0.75em;
+            color: #848e9c;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }}
+
+        .meta-value {{
+            font-size: 0.9em;
+            color: #eaecef;
+            font-weight: 500;
+        }}
+
+        .report-description {{
+            color: #b7bdc6;
+            font-size: 0.95em;
+            line-height: 1.6;
+        }}
+
+        .view-button {{
+            display: block;
+            background: #f0b90b;
+            color: #0b0e11;
+            text-align: center;
+            padding: 12px;
+            border-radius: 4px;
+            margin-top: 20px;
+            font-weight: 600;
+            transition: background 0.3s, transform 0.2s;
+        }}
+
+        .view-button:hover {{
+            background: #fcd535;
+            transform: scale(1.02);
+        }}
+
+        .no-reports {{
+            background: #1e2329;
+            padding: 60px;
+            border-radius: 8px;
+            border: 1px solid #2b3139;
+            text-align: center;
+        }}
+
+        .no-reports h2 {{
+            color: #f0b90b;
+            margin-bottom: 15px;
+        }}
+
+        .no-reports p {{
+            color: #848e9c;
+            font-size: 1.1em;
+        }}
+
+        .footer {{
+            text-align: center;
+            color: #848e9c;
+            margin-top: 50px;
+            font-size: 0.9em;
+        }}
+
+        .footer p {{
+            margin: 5px 0;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Brigado v2</h1>
+            <p>Performance Analysis Dashboard</p>
+        </div>
+"""
+
+    # Add stats if metadata is available
+    if metadata:
+        html_content += f"""
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Trades</h3>
+                <div class="value">{metadata['record_counts']['trades']:,}</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Orders</h3>
+                <div class="value">{metadata['record_counts']['orders']:,}</div>
+            </div>
+            <div class="stat-card">
+                <h3>Executors</h3>
+                <div class="value">{metadata['record_counts']['executors']:,}</div>
+            </div>
+            <div class="stat-card">
+                <h3>Controllers</h3>
+                <div class="value">{metadata['record_counts']['controllers']}</div>
+            </div>
+        </div>
+"""
+
+    if available_reports:
+        html_content += """
+        <div class="reports-grid">
+"""
+
+        # Consolidation Report
+        if 'consolidation' in available_reports:
+            info = report_info['consolidation']
+            html_content += f"""
+            <a href="{info['path']}" class="report-card">
+                <div class="report-header">
+                    <div class="icon">📋</div>
+                    <h2>Consolidation Report</h2>
+                    <p>Data consolidation summary</p>
+                </div>
+                <div class="report-body">
+                    <div class="report-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Last Updated</span>
+                            <span class="meta-value">{info['modified'].strftime('%Y-%m-%d %H:%M')}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Size</span>
+                            <span class="meta-value">{info['size_kb']:.1f} KB</span>
+                        </div>
+                    </div>
+                    <div class="report-description">
+                        View consolidated data from all bot databases. Includes controller breakdown,
+                        orphan trades, and coverage statistics per bot.
+                    </div>
+                    <div class="view-button">View Report →</div>
+                </div>
+            </a>
+"""
+
+        # Market Analysis Report
+        if 'market_analysis' in available_reports:
+            info = report_info['market_analysis']
+            html_content += f"""
+            <a href="{info['path']}" class="report-card">
+                <div class="report-header">
+                    <div class="icon">📈</div>
+                    <h2>Market Analysis</h2>
+                    <p>Market share & performance</p>
+                </div>
+                <div class="report-body">
+                    <div class="report-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Last Updated</span>
+                            <span class="meta-value">{info['modified'].strftime('%Y-%m-%d %H:%M')}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Size</span>
+                            <span class="meta-value">{info['size_kb']:.1f} KB</span>
+                        </div>
+                    </div>
+                    <div class="report-description">
+                        Controller performance vs market activity by trading pair.
+                        Includes OHLC data, market share calculations, and volume comparisons.
+                    </div>
+                    <div class="view-button">View Report →</div>
+                </div>
+            </a>
+"""
+
+        html_content += """
+        </div>
+"""
+    else:
+        html_content += """
+        <div class="no-reports">
+            <h2>No Reports Available</h2>
+            <p>Run the consolidation and analysis notebooks to generate reports.</p>
+        </div>
+"""
+
+    html_content += f"""
+        <div class="footer">
+            <p>Generated on {datetime.now().strftime('%Y-%m-%d at %H:%M:%S')}</p>
+            <p>Brigado v2 Performance Analysis System</p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+    # Save index.html
+    index_path = output_dir / 'index.html'
+    with open(index_path, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+
+    return index_path
