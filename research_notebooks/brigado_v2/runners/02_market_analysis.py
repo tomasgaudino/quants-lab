@@ -194,11 +194,18 @@ async def main_async():
             ctrl_trades = pair_trades[pair_trades['controller_id'] == controller_id]
             bot_name = ctrl_trades['source_bot'].iloc[0] if len(ctrl_trades) > 0 else 'Unknown'
 
+            # Calculate time since first trade
+            first_trade_time = ctrl_trades['timestamp'].min()
+            last_trade_time = ctrl_trades['timestamp'].max()
+            time_elapsed = last_trade_time - first_trade_time
+
             controller_volumes[controller_id] = {
                 'bot_name': bot_name,
                 'trades': len(ctrl_trades),
                 'base_volume': float(ctrl_trades['amount'].sum()),
-                'quote_volume': float(ctrl_trades['quote_volume'].sum())
+                'quote_volume': float(ctrl_trades['quote_volume'].sum()),
+                'first_trade_time': first_trade_time,
+                'time_elapsed': time_elapsed
             }
 
         # Total bot volume for this pair
@@ -319,6 +326,24 @@ def generate_market_html(market_share_data, start_date, end_date):
     """Generate HTML content for market analysis report."""
     from datetime import datetime
 
+    def format_timedelta(td):
+        """Format timedelta as XdXhXm"""
+        total_seconds = int(td.total_seconds())
+        days = total_seconds // 86400
+        hours = (total_seconds % 86400) // 3600
+        minutes = (total_seconds % 3600) // 60
+
+        parts = []
+        if days > 0:
+            parts.append(f"{days}d")
+        if hours > 0:
+            parts.append(f"{hours}h")
+        if minutes > 0 or not parts:
+            parts.append(f"{minutes}m")
+        return " ".join(parts)
+
+    symbols = sorted(market_share_data.keys())
+
     html_content = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -335,6 +360,13 @@ def generate_market_html(market_share_data, start_date, end_date):
         .nav-link {{ position: absolute; top: 20px; left: 20px; background: #2b3139; color: #f0b90b; padding: 10px 20px; border-radius: 4px; text-decoration: none; border: 1px solid #f0b90b; transition: all 0.3s; font-weight: 600; }}
         .nav-link:hover {{ background: #f0b90b; color: #0b0e11; }}
         .content {{ padding: 40px; }}
+        .tabs {{ display: flex; gap: 10px; margin-bottom: 30px; border-bottom: 2px solid #3d4551; padding-bottom: 10px; }}
+        .tab {{ background: #2b3139; color: #848e9c; padding: 12px 24px; border-radius: 4px 4px 0 0; cursor: pointer; border: 1px solid #3d4551; border-bottom: none; transition: all 0.3s; font-weight: 600; }}
+        .tab:hover {{ background: #3d4551; color: #f0b90b; }}
+        .tab.active {{ background: #f0b90b; color: #0b0e11; border-color: #f0b90b; }}
+        .tab-content {{ display: none; animation: fadeIn 0.3s; }}
+        .tab-content.active {{ display: block; }}
+        @keyframes fadeIn {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
         .pair-section {{ background: #2b3139; border-radius: 8px; padding: 30px; margin-bottom: 30px; border-left: 5px solid #f0b90b; }}
         .pair-header {{ font-size: 2em; color: #f0b90b; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; }}
         .market-share-badge {{ background: #f0b90b; color: #0b0e11; padding: 8px 16px; border-radius: 4px; font-size: 0.5em; font-weight: 600; }}
@@ -348,11 +380,33 @@ def generate_market_html(market_share_data, start_date, end_date):
         th {{ background: #1e2329; color: #f0b90b; font-weight: 600; text-transform: uppercase; font-size: 0.75em; }}
         tr:hover {{ background: #3d4551; }}
         .bot-name {{ font-size: 0.8em; color: #848e9c; font-style: italic; }}
+        .time-elapsed {{ font-size: 0.7em; color: #0ecb81; margin-left: 8px; }}
         .share-high {{ color: #0ecb81; font-weight: 600; }}
         .share-medium {{ color: #f0b90b; font-weight: 600; }}
         .share-low {{ color: #848e9c; }}
         .footer {{ background: #1e2329; border-top: 1px solid #2b3139; padding: 20px; text-align: center; color: #848e9c; font-size: 0.9em; }}
     </style>
+    <script>
+        function switchTab(symbol) {{
+            // Hide all tab contents
+            var tabContents = document.getElementsByClassName('tab-content');
+            for (var i = 0; i < tabContents.length; i++) {{
+                tabContents[i].classList.remove('active');
+            }}
+
+            // Remove active class from all tabs
+            var tabs = document.getElementsByClassName('tab');
+            for (var i = 0; i < tabs.length; i++) {{
+                tabs[i].classList.remove('active');
+            }}
+
+            // Show selected tab content
+            document.getElementById('tab-' + symbol).classList.add('active');
+
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+        }}
+    </script>
 </head>
 <body>
     <div class="container">
@@ -363,21 +417,31 @@ def generate_market_html(market_share_data, start_date, end_date):
             <p style="margin-top: 10px;">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
         </div>
         <div class="content">
+            <div class="tabs">
 """
 
-    # Add sections for each pair
-    for pair in sorted(market_share_data.keys()):
+    # Add tab buttons
+    for idx, symbol in enumerate(symbols):
+        active_class = ' active' if idx == 0 else ''
+        html_content += f'                <div class="tab{active_class}" onclick="switchTab(\'{symbol}\')">{symbol}</div>\n'
+
+    html_content += "            </div>\n\n"
+
+    # Add tab contents
+    for idx, pair in enumerate(symbols):
         data_point = market_share_data[pair]
         mkt_data = data_point['market_data']
+        active_class = ' active' if idx == 0 else ''
 
         html_content += f"""
-            <div class="pair-section">
-                <div class="pair-header">
-                    <span>{pair}</span>
-                    <span class="market-share-badge">
-                        Market Share: {data_point['overall_base_market_share']:.4f}%
-                    </span>
-                </div>
+            <div id="tab-{pair}" class="tab-content{active_class}">
+                <div class="pair-section">
+                    <div class="pair-header">
+                        <span>{pair}</span>
+                        <span class="market-share-badge">
+                            Market Share: {data_point['overall_base_market_share']:.4f}%
+                        </span>
+                    </div>
 """
 
         if mkt_data:
@@ -442,11 +506,12 @@ def generate_market_html(market_share_data, start_date, end_date):
 
             for controller_id, ctrl_data in sorted_controllers:
                 share_class = "share-high" if ctrl_data['quote_market_share'] >= 0.1 else "share-medium" if ctrl_data['quote_market_share'] >= 0.01 else "share-low"
+                time_str = format_timedelta(ctrl_data['time_elapsed'])
 
                 html_content += f"""
                         <tr>
                             <td><strong>{controller_id}</strong></td>
-                            <td><span class="bot-name">{ctrl_data['bot_name']}</span></td>
+                            <td><span class="bot-name">{ctrl_data['bot_name']}</span><span class="time-elapsed">({time_str})</span></td>
                             <td>{ctrl_data['trades']:,}</td>
                             <td>{ctrl_data['base_volume']:,.4f}</td>
                             <td>{ctrl_data['quote_volume']:,.0f}</td>
@@ -460,6 +525,7 @@ def generate_market_html(market_share_data, start_date, end_date):
 """
 
         html_content += """
+                </div>
             </div>
 """
 

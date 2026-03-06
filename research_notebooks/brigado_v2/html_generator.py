@@ -608,6 +608,20 @@ def generate_consolidation_report_html(
             </div>
             <div class="section">
                 <h2>📈 Trading Statistics</h2>
+    """
+
+    # Calculate activity days
+    start_date = trades_with_ctrl['timestamp'].min()
+    end_date = trades_with_ctrl['timestamp'].max()
+    total_days = (end_date - start_date).days + 1
+
+    # Get unique trading days
+    trades_with_ctrl['trade_date'] = pd.to_datetime(trades_with_ctrl['timestamp']).dt.date
+    trading_days = trades_with_ctrl['trade_date'].nunique()
+    no_trading_days = total_days - trading_days
+    activity_sla = (trading_days / total_days * 100) if total_days > 0 else 0
+
+    html_content += f"""
                 <div class="metrics-grid">
                     <div class="metric-card">
                         <h3>Date Range</h3>
@@ -623,6 +637,11 @@ def generate_consolidation_report_html(
                         <h3>Total Volume</h3>
                         <div class="value">{trades_with_ctrl['quote_volume'].sum():,.0f}</div>
                         <div class="subtitle">quote currency</div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>Activity Days</h3>
+                        <div class="value">{trading_days} <span style="color: #f6465d; font-size: 0.6em;">({no_trading_days})</span></div>
+                        <div class="subtitle">SLA: {activity_sla:.1f}%</div>
                     </div>
                 </div>
 
