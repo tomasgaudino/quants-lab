@@ -64,6 +64,7 @@ def main():
         (script_dir / "00_fetch_live_databases.py", "Fetch Live Databases"),
         (script_dir / "01_consolidate_data.py", "Data Consolidation"),
         (script_dir / "02_market_analysis.py", "Market Analysis"),
+        (script_dir / "03_evolutive_report.py", "Evolutive Report"),
     ]
 
     # Track results

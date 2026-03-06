@@ -771,6 +771,7 @@ def generate_index_html(output_dir: Path, metadata: dict = None) -> Path:
     reports = {
         'consolidation': output_dir / 'consolidation_report.html',
         'market_analysis': output_dir / 'market_analysis_report.html',
+        'evolutive': output_dir / 'evolutive_report.html',
     }
 
     available_reports = {name: path for name, path in reports.items() if path.exists()}
@@ -1080,6 +1081,36 @@ def generate_index_html(output_dir: Path, metadata: dict = None) -> Path:
                     <div class="report-description">
                         Controller performance vs market activity by trading pair.
                         Includes OHLC data, market share calculations, and volume comparisons.
+                    </div>
+                    <div class="view-button">View Report →</div>
+                </div>
+            </a>
+"""
+
+        # Evolutive Report
+        if 'evolutive' in available_reports:
+            info = report_info['evolutive']
+            html_content += f"""
+            <a href="{info['path']}" class="report-card">
+                <div class="report-header">
+                    <div class="icon">📊</div>
+                    <h2>Evolutive Report</h2>
+                    <p>Daily metrics evolution</p>
+                </div>
+                <div class="report-body">
+                    <div class="report-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Last Updated</span>
+                            <span class="meta-value">{info['modified'].strftime('%Y-%m-%d %H:%M')}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Size</span>
+                            <span class="meta-value">{info['size_kb']:.1f} KB</span>
+                        </div>
+                    </div>
+                    <div class="report-description">
+                        Daily evolution of market, bot, and controller metrics over time.
+                        Interactive charts showing performance trends, volume evolution, and market share progression.
                     </div>
                     <div class="view-button">View Report →</div>
                 </div>
