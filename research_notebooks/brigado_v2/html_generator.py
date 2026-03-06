@@ -518,9 +518,11 @@ def generate_consolidation_report_html(
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #eaecef; background: #0b0e11; padding: 20px; }}
         .container {{ max-width: 1400px; margin: 0 auto; background: #1e2329; border-radius: 8px; border: 1px solid #2b3139; overflow: hidden; }}
-        .header {{ background: linear-gradient(135deg, #2b3139 0%, #1e2329 100%); border-bottom: 3px solid #f0b90b; color: #f0b90b; padding: 40px; text-align: center; }}
+        .header {{ background: linear-gradient(135deg, #2b3139 0%, #1e2329 100%); border-bottom: 3px solid #f0b90b; color: #f0b90b; padding: 40px; text-align: center; position: relative; }}
         .header h1 {{ font-size: 2.5em; margin-bottom: 10px; font-weight: 600; text-shadow: 0 0 20px rgba(240, 185, 11, 0.3); }}
         .header p {{ font-size: 1.1em; color: #848e9c; }}
+        .nav-link {{ position: absolute; top: 20px; left: 20px; background: #2b3139; color: #f0b90b; padding: 10px 20px; border-radius: 4px; text-decoration: none; border: 1px solid #f0b90b; transition: all 0.3s; font-weight: 600; }}
+        .nav-link:hover {{ background: #f0b90b; color: #0b0e11; }}
         .content {{ padding: 40px; }}
         .section {{ margin-bottom: 40px; }}
         .section h2 {{ font-size: 1.8em; margin-bottom: 20px; color: #f0b90b; border-bottom: 2px solid #f0b90b; padding-bottom: 10px; }}
@@ -570,6 +572,7 @@ def generate_consolidation_report_html(
 <body>
     <div class="container">
         <div class="header">
+            <a href="index.html" class="nav-link">← Back to Index</a>
             <h1>📊 Data Consolidation Report</h1>
             <p>Automated Database Consolidation Summary</p>
             <p class="timestamp">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>

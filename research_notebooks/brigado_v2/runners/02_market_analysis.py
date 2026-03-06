@@ -50,15 +50,16 @@ def print_metric(label: str, value: str, indent: int = 4):
 
 
 async def fetch_market_data_for_pair(clob, pair: str, start_date, end_date):
-    """Fetch market data for a single trading pair."""
+    """Fetch market data for a single trading pair - returns daily breakdown."""
     try:
         binance_pair = pair.replace('-', '')
         print_info(f"Fetching {pair} ({binance_pair})...")
 
+        # Fetch 1-day candles for daily data
         candles = await clob.get_candles(
             connector_name='binance',
             trading_pair=binance_pair,
-            interval='1m',
+            interval='1d',  # Changed to 1d for daily candles
             start_time=int(start_date.timestamp()),
             end_time=int(end_date.timestamp())
         )
@@ -66,23 +67,38 @@ async def fetch_market_data_for_pair(clob, pair: str, start_date, end_date):
         if candles.data is not None and len(candles.data) > 0:
             df = candles.data
 
-            data = {
-                'open': float(df['open'].iloc[0]),
-                'high': float(df['high'].max()),
-                'low': float(df['low'].min()),
-                'close': float(df['close'].iloc[-1]),
-                'base_volume': float(df['volume'].sum()),
-                'quote_volume': float(df['quote_asset_volume'].sum()) if 'quote_asset_volume' in df.columns else 0,
-                'n_trades': int(df['n_trades'].sum()) if 'n_trades' in df.columns else 0,
-                'high_low_pct': ((float(df['high'].max()) - float(df['low'].min())) / float(df['low'].min()) * 100),
-            }
+            # Ensure timestamp column
+            if 'timestamp' not in df.columns and df.index.name == 'timestamp':
+                df = df.reset_index()
 
-            print_metric("Base Volume", f"{data['base_volume']:,.2f}", indent=6)
-            print_metric("Quote Volume", f"{data['quote_volume']:,.0f}", indent=6)
-            print_metric("Trades", f"{data['n_trades']:,}", indent=6)
-            print_metric("OHLC", f"{data['open']:.2f} → {data['close']:.2f} (Δ{data['high_low_pct']:.2f}%)", indent=6)
+            # Convert timestamp to date
+            # Timestamps from Binance are in seconds (Unix timestamp)
+            df['date'] = pd.to_datetime(df['timestamp'], unit='s').dt.date
 
-            return pair, data
+            # Calculate daily metrics
+            daily_data = []
+            for _, row in df.iterrows():
+                daily_data.append({
+                    'date': row['date'],
+                    'open': float(row['open']),
+                    'high': float(row['high']),
+                    'low': float(row['low']),
+                    'close': float(row['close']),
+                    'base_volume': float(row['volume']),
+                    'quote_volume': float(row['quote_asset_volume']) if 'quote_asset_volume' in row else 0,
+                    'n_trades': int(row['n_trades']) if 'n_trades' in row else 0,
+                    'high_low_pct': ((float(row['high']) - float(row['low'])) / float(row['low']) * 100) if float(row['low']) > 0 else 0,
+                })
+
+            # Summary stats
+            total_volume = sum(d['quote_volume'] for d in daily_data)
+            total_trades = sum(d['n_trades'] for d in daily_data)
+
+            print_metric("Days", f"{len(daily_data)}", indent=6)
+            print_metric("Total Volume", f"{total_volume:,.0f}", indent=6)
+            print_metric("Total Trades", f"{total_trades:,}", indent=6)
+
+            return pair, daily_data  # Return list of daily dicts
         else:
             print_info("⚠️  No data available", indent=6)
             return pair, None
@@ -145,11 +161,15 @@ async def main_async():
 
     # Get trading pairs and date range
     trading_pairs = trades['symbol'].unique()
-    start_date = trades['timestamp'].min()
-    end_date = trades['timestamp'].max()
+    first_trade = trades['timestamp'].min()
+    last_trade = trades['timestamp'].max()
+
+    # Expand to full days (00:00:00 to 23:59:59) to get complete market data
+    start_date = pd.Timestamp(first_trade.date())  # Beginning of first day
+    end_date = pd.Timestamp(last_trade.date()) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)  # End of last day
 
     print_step(f"Fetching market data for {len(trading_pairs)} pairs...")
-    print_info(f"Date range: {start_date.date()} to {end_date.date()}")
+    print_info(f"Date range: {start_date.date()} to {end_date.date()} (full days)")
     print_info(f"Trading pairs: {', '.join(trading_pairs)}")
 
     # Fetch market data for all pairs
@@ -187,8 +207,10 @@ async def main_async():
 
         # Market share calculations
         if market_data.get(pair) and market_data[pair]:
-            market_base_volume = market_data[pair]['base_volume']
-            market_quote_volume = market_data[pair]['quote_volume']
+            # Aggregate daily volumes into period totals
+            daily_data_list = market_data[pair]
+            market_base_volume = sum(d['base_volume'] for d in daily_data_list)
+            market_quote_volume = sum(d['quote_volume'] for d in daily_data_list)
 
             overall_base_share = (total_bot_base_volume / market_base_volume) * 100 if market_base_volume > 0 else 0
             overall_quote_share = (total_bot_quote_volume / market_quote_volume) * 100 if market_quote_volume > 0 else 0
@@ -204,8 +226,23 @@ async def main_async():
                 vol_data['base_market_share'] = 0
                 vol_data['quote_market_share'] = 0
 
+        # Aggregate daily data for HTML report
+        aggregated_market_data = None
+        if market_data.get(pair) and market_data[pair]:
+            daily_data_list = market_data[pair]
+            aggregated_market_data = {
+                'base_volume': sum(d['base_volume'] for d in daily_data_list),
+                'quote_volume': sum(d['quote_volume'] for d in daily_data_list),
+                'n_trades': sum(d['n_trades'] for d in daily_data_list),
+                'open': daily_data_list[0]['open'],  # First day's open
+                'high': max(d['high'] for d in daily_data_list),  # Period high
+                'low': min(d['low'] for d in daily_data_list),  # Period low
+                'close': daily_data_list[-1]['close'],  # Last day's close
+                'high_low_pct': ((max(d['high'] for d in daily_data_list) - min(d['low'] for d in daily_data_list)) / min(d['low'] for d in daily_data_list) * 100)
+            }
+
         market_share_data[pair] = {
-            'market_data': market_data.get(pair),
+            'market_data': aggregated_market_data,
             'total_bot_base_volume': total_bot_base_volume,
             'total_bot_quote_volume': total_bot_quote_volume,
             'total_bot_trades': len(pair_trades),
@@ -220,6 +257,34 @@ async def main_async():
         print_metric("Controllers", f"{len(controller_volumes)}", indent=6)
 
     print_success("Market share calculated")
+
+    # Save market data to parquet for evolutive report
+    print_step("Saving market data for evolutive report...")
+    market_df_records = []
+    for pair in trading_pairs:
+        if pair in market_data and market_data[pair]:
+            daily_data_list = market_data[pair]  # Now a list of daily dicts
+            for daily_dict in daily_data_list:
+                market_df_records.append({
+                    'date': daily_dict['date'],
+                    'symbol': pair,
+                    'base_volume': daily_dict['base_volume'],
+                    'quote_volume': daily_dict['quote_volume'],
+                    'trades': daily_dict['n_trades'],
+                    'open': daily_dict['open'],
+                    'high': daily_dict['high'],
+                    'low': daily_dict['low'],
+                    'close': daily_dict['close'],
+                    'volatility': daily_dict['high_low_pct']
+                })
+
+    if market_df_records:
+        market_df = pd.DataFrame(market_df_records)
+        market_data_path = file_manager.data_sources_dir / "market_analysis_data.parquet"
+        market_df.to_parquet(market_data_path, index=False)
+        print_success(f"Market data saved: {market_data_path.name}")
+    else:
+        print_info("⚠️  No market data to save", indent=2)
 
     # Generate HTML report
     print_step("Generating market analysis report...")
@@ -264,9 +329,11 @@ def generate_market_html(market_share_data, start_date, end_date):
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #eaecef; background: #0b0e11; padding: 20px; }}
         .container {{ max-width: 1600px; margin: 0 auto; background: #1e2329; border-radius: 8px; border: 1px solid #2b3139; overflow: hidden; }}
-        .header {{ background: linear-gradient(135deg, #2b3139 0%, #1e2329 100%); border-bottom: 3px solid #f0b90b; color: #f0b90b; padding: 40px; text-align: center; }}
+        .header {{ background: linear-gradient(135deg, #2b3139 0%, #1e2329 100%); border-bottom: 3px solid #f0b90b; color: #f0b90b; padding: 40px; text-align: center; position: relative; }}
         .header h1 {{ font-size: 2.5em; margin-bottom: 10px; font-weight: 600; text-shadow: 0 0 20px rgba(240, 185, 11, 0.3); }}
         .header p {{ font-size: 1.1em; color: #848e9c; }}
+        .nav-link {{ position: absolute; top: 20px; left: 20px; background: #2b3139; color: #f0b90b; padding: 10px 20px; border-radius: 4px; text-decoration: none; border: 1px solid #f0b90b; transition: all 0.3s; font-weight: 600; }}
+        .nav-link:hover {{ background: #f0b90b; color: #0b0e11; }}
         .content {{ padding: 40px; }}
         .pair-section {{ background: #2b3139; border-radius: 8px; padding: 30px; margin-bottom: 30px; border-left: 5px solid #f0b90b; }}
         .pair-header {{ font-size: 2em; color: #f0b90b; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; }}
@@ -290,6 +357,7 @@ def generate_market_html(market_share_data, start_date, end_date):
 <body>
     <div class="container">
         <div class="header">
+            <a href="index.html" class="nav-link">← Back to Index</a>
             <h1>📊 Market Performance Analysis</h1>
             <p>Controller Performance vs Market Activity by Trading Pair</p>
             <p style="margin-top: 10px;">Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
