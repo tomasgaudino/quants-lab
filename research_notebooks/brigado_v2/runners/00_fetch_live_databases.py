@@ -16,17 +16,29 @@ from typing import List, Dict, Optional
 import sqlite3
 import pandas as pd
 
+# Add project root to path
+sys.path.append(str(Path(__file__).parent.parent.parent.parent))
+
+from research_notebooks.brigado_v2.modules.file_manager import FileManager
+
 
 # ============================================================================
 #                            CONFIGURATION
 # ============================================================================
 
-# SSH Configuration
-SSH_HOST = "brigado"
-REMOTE_BASE_PATH = "deploy/hummingbot-api/bots/instances"
+# Get server name from environment or use default
+SERVER_NAME = os.getenv('BRIGADO_SERVER', 'brigado')
 
-# Local Configuration
-LOCAL_BASE_PATH = Path(__file__).parent.parent / "data" / "live_databases"
+# SSH Configuration - hostname to connect to
+SSH_HOST = os.getenv('SSH_HOST', 'brigado')  # SSH hostname from ~/.ssh/config or IP
+REMOTE_PATHS = [
+    "hummingbot-api/bots/instances",
+    "hummingbot-api/bots/archived"
+]
+
+# Local Configuration - use FileManager for consistent paths
+file_manager = FileManager(server_name=SERVER_NAME)
+LOCAL_BASE_PATH = file_manager.live_databases_dir
 LOCAL_BASE_PATH.mkdir(parents=True, exist_ok=True)
 
 
@@ -154,17 +166,25 @@ def check_remote_path_exists(remote_path: str) -> bool:
 #                      DATABASE FETCH FUNCTIONS
 # ============================================================================
 
-def fetch_bot_instance_data(bot_name: str) -> Dict:
+def fetch_bot_instance_data(bot_name: str, remote_base_path: str) -> Dict:
     """
     Fetch SQLite database and YAML configs for a specific bot instance.
+
+    Args:
+        bot_name: Name of the bot instance
+        remote_base_path: Base path on remote server (instances or archived)
 
     Returns:
         Dict with fetch results
     """
-    print_info(f"Processing: {bot_name}")
+    # Determine source type from path
+    source_type = "archived" if "archived" in remote_base_path else "active"
+    print_info(f"Processing: {bot_name} ({source_type})")
 
     result = {
         'bot_name': bot_name,
+        'source_type': source_type,
+        'remote_base_path': remote_base_path,
         'timestamp': datetime.now().isoformat(),
         'databases': [],
         'configs': [],
@@ -177,7 +197,7 @@ def fetch_bot_instance_data(bot_name: str) -> Dict:
     bot_local_path.mkdir(parents=True, exist_ok=True)
 
     # Fetch SQLite databases from data/ directory
-    remote_data_path = f"{REMOTE_BASE_PATH}/{bot_name}/data"
+    remote_data_path = f"{remote_base_path}/{bot_name}/data"
 
     if check_remote_path_exists(remote_data_path):
         # List .sqlite files
@@ -216,7 +236,7 @@ def fetch_bot_instance_data(bot_name: str) -> Dict:
                     result['errors'].append(f"Failed to download {filename}")
 
     # Fetch YAML configs from conf/controllers/ directory
-    remote_config_path = f"{REMOTE_BASE_PATH}/{bot_name}/conf/controllers"
+    remote_config_path = f"{remote_base_path}/{bot_name}/conf/controllers"
 
     if check_remote_path_exists(remote_config_path):
         # List .yml files
@@ -389,27 +409,44 @@ def main():
 
     print_header("📡 LIVE DATABASE FETCHER")
     print(f"Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Remote Server: {SSH_HOST}")
+    print(f"Server Name: {SERVER_NAME}")
+    print(f"SSH Host: {SSH_HOST}")
+    print(f"Remote Paths: {', '.join(REMOTE_PATHS)}")
     print(f"Local Path: {LOCAL_BASE_PATH}\n")
 
-    # Get list of all bot instances
+    # Discover bot instances from all remote paths
     print_step("Discovering bot instances on server...")
-    bot_instances = list_remote_directories(REMOTE_BASE_PATH)
+    all_bot_instances = []
 
-    if not bot_instances:
+    for remote_path in REMOTE_PATHS:
+        source_type = "archived" if "archived" in remote_path else "active"
+        print_info(f"Scanning {source_type}: {remote_path}")
+
+        bot_instances = list_remote_directories(remote_path)
+
+        if bot_instances:
+            print_success(f"  Found {len(bot_instances)} bot(s) in {source_type}")
+            for bot in bot_instances:
+                all_bot_instances.append({
+                    'bot_name': bot,
+                    'remote_path': remote_path,
+                    'source_type': source_type
+                })
+        else:
+            print_warning(f"  No bots found in {source_type}")
+
+    if not all_bot_instances:
         print_error("No bot instances found on server!")
         return 1
 
-    print_success(f"Found {len(bot_instances)} bot instance(s)")
-    for bot in bot_instances:
-        print_info(bot)
+    print_success(f"Total: {len(all_bot_instances)} bot instance(s) across all paths")
 
     # Fetch data for each bot instance
     print_step("Fetching databases and configs...")
     results = []
 
-    for bot_name in bot_instances:
-        result = fetch_bot_instance_data(bot_name)
+    for bot_info in all_bot_instances:
+        result = fetch_bot_instance_data(bot_info['bot_name'], bot_info['remote_path'])
         results.append(result)
 
     print_success(f"Fetch completed for {len(results)} bot(s)")
@@ -478,9 +515,9 @@ def main():
         'timestamp': datetime.now().isoformat(),
         'fetch_id': fetch_timestamp,
         'ssh_host': SSH_HOST,
-        'remote_base_path': REMOTE_BASE_PATH,
+        'remote_paths': REMOTE_PATHS,
         'local_base_path': str(LOCAL_BASE_PATH),
-        'total_instances': len(bot_instances),
+        'total_instances': len(all_bot_instances),
         'total_databases': total_databases,
         'total_configs': total_configs,
         'total_replaced_files': total_replaced,
@@ -508,7 +545,7 @@ def main():
 
     print_header("✨ FETCH COMPLETE")
     print(f"Duration: {duration:.2f}s")
-    print(f"Total Instances: {len(bot_instances)}")
+    print(f"Total Instances: {len(all_bot_instances)}")
     print(f"Total Databases: {total_databases}")
     print(f"Total Configs: {total_configs}")
     print(f"Files Replaced: {total_replaced}")

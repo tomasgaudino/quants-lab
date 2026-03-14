@@ -7,6 +7,7 @@ Fetches market data from Binance and calculates market share.
 """
 
 import sys
+import os
 from pathlib import Path
 from datetime import datetime
 import asyncio
@@ -16,10 +17,13 @@ import pandas as pd
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
-from research_notebooks.brigado_v2.data_consolidator import DataConsolidator
-from research_notebooks.brigado_v2.file_manager import FileManager
-from research_notebooks.brigado_v2.html_generator import generate_index_html
+from research_notebooks.brigado_v2.modules.data_consolidator import DataConsolidator
+from research_notebooks.brigado_v2.modules.file_manager import FileManager
+from research_notebooks.brigado_v2.modules.html_generator import generate_index_html
 from core.data_sources.clob import CLOBDataSource
+
+# Get server name from environment or use default
+SERVER_NAME = os.getenv('BRIGADO_SERVER', 'brigado')
 
 
 def print_header(title: str):
@@ -116,11 +120,11 @@ async def main_async():
     print(f"Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     # Initialize
-    print_step("Initializing components...")
-    consolidator = DataConsolidator()
-    file_manager = FileManager()
+    print_step(f"Initializing components for server '{SERVER_NAME}'...")
+    consolidator = DataConsolidator(server_name=SERVER_NAME)
+    file_manager = FileManager(server_name=SERVER_NAME)
     clob = CLOBDataSource()
-    print_success("Components initialized")
+    print_success(f"Components initialized for server '{SERVER_NAME}'")
 
     # Load consolidated data
     print_step("Loading consolidated data...")
@@ -159,8 +163,8 @@ async def main_async():
     coverage = (trades['controller_id'].notna().sum() / len(trades)) * 100
     print_success(f"Mapped {len(order_to_controller):,} orders ({coverage:.1f}% coverage)")
 
-    # Get trading pairs and date range
-    trading_pairs = trades['symbol'].unique()
+    # Get trading pairs and date range (filter out None values)
+    trading_pairs = [p for p in trades['symbol'].unique() if p is not None]
     first_trade = trades['timestamp'].min()
     last_trade = trades['timestamp'].max()
 
@@ -190,6 +194,8 @@ async def main_async():
 
         # Calculate controller volumes
         controller_volumes = {}
+
+        # Process mapped trades (with controller_id)
         for controller_id in pair_trades['controller_id'].dropna().unique():
             ctrl_trades = pair_trades[pair_trades['controller_id'] == controller_id]
             bot_name = ctrl_trades['source_bot'].iloc[0] if len(ctrl_trades) > 0 else 'Unknown'
@@ -207,6 +213,28 @@ async def main_async():
                 'first_trade_time': first_trade_time,
                 'time_elapsed': time_elapsed
             }
+
+        # Add unmapped trades as separate entries
+        unmapped_trades = pair_trades[pair_trades['controller_id'].isna()]
+        if len(unmapped_trades) > 0:
+            # Group unmapped trades by source_bot
+            for bot_name in unmapped_trades['source_bot'].unique():
+                bot_unmapped = unmapped_trades[unmapped_trades['source_bot'] == bot_name]
+
+                first_trade_time = bot_unmapped['timestamp'].min()
+                last_trade_time = bot_unmapped['timestamp'].max()
+                time_elapsed = last_trade_time - first_trade_time
+
+                controller_id = f"⚠️ Unmapped ({bot_name})"
+                controller_volumes[controller_id] = {
+                    'bot_name': bot_name,
+                    'trades': len(bot_unmapped),
+                    'base_volume': float(bot_unmapped['amount'].sum()),
+                    'quote_volume': float(bot_unmapped['quote_volume'].sum()),
+                    'first_trade_time': first_trade_time,
+                    'time_elapsed': time_elapsed,
+                    'is_unmapped': True  # Flag to style differently in HTML
+                }
 
         # Total bot volume for this pair
         total_bot_base_volume = float(pair_trades['amount'].sum())
@@ -297,7 +325,7 @@ async def main_async():
     print_step("Generating market analysis report...")
 
     html_content = generate_market_html(market_share_data, start_date, end_date)
-    html_path = file_manager.data_sources_dir / "market_analysis_report.html"
+    html_path = file_manager.reports_dir / "market_analysis_report.html"
 
     with open(html_path, 'w', encoding='utf-8') as f:
         f.write(html_content)
@@ -307,7 +335,7 @@ async def main_async():
     # Update index
     print_step("Updating index page...")
     metadata = consolidator.get_consolidation_info()
-    index_path = generate_index_html(file_manager.data_sources_dir, metadata=metadata)
+    index_path = generate_index_html(file_manager.reports_dir, metadata=metadata)
     print_success(f"Index updated: {index_path.name}")
 
     # Summary
@@ -316,7 +344,8 @@ async def main_async():
 
     print_header("✨ MARKET ANALYSIS COMPLETE")
     print(f"Duration: {duration:.2f}s")
-    print(f"Output directory: {file_manager.data_sources_dir}")
+    print(f"Data directory: {file_manager.data_sources_dir}")
+    print(f"Reports directory: {file_manager.reports_dir}")
     print(f"\n💡 Open {index_path} in your browser to view reports\n")
 
     return 0

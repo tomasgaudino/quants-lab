@@ -7,6 +7,7 @@ for market, bot, and controller perspectives.
 """
 
 import sys
+import os
 from pathlib import Path
 from datetime import datetime
 import asyncio
@@ -15,11 +16,14 @@ import pandas as pd
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
-from research_notebooks.brigado_v2.data_consolidator import DataConsolidator
-from research_notebooks.brigado_v2.file_manager import FileManager
-from research_notebooks.brigado_v2.evolutive_calculator import EvolutiveMetricsCalculator
-from research_notebooks.brigado_v2.evolutive_report_generator import generate_evolutive_report_html
-from research_notebooks.brigado_v2.html_generator import generate_index_html
+from research_notebooks.brigado_v2.modules.data_consolidator import DataConsolidator
+from research_notebooks.brigado_v2.modules.file_manager import FileManager
+from research_notebooks.brigado_v2.modules.evolutive_calculator import EvolutiveMetricsCalculator
+from research_notebooks.brigado_v2.modules.evolutive_report_generator import generate_evolutive_report_html
+from research_notebooks.brigado_v2.modules.html_generator import generate_index_html
+
+# Get server name from environment or use default
+SERVER_NAME = os.getenv('BRIGADO_SERVER', 'brigado')
 
 
 def print_header(title: str):
@@ -57,12 +61,12 @@ async def main_async():
     print(f"Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     # Initialize
-    print_step("Initializing components...")
-    consolidator = DataConsolidator()
-    file_manager = FileManager()
+    print_step(f"Initializing components for server '{SERVER_NAME}'...")
+    consolidator = DataConsolidator(server_name=SERVER_NAME)
+    file_manager = FileManager(server_name=SERVER_NAME)
     root_path = str(Path(__file__).parent.parent.parent.parent)
-    calculator = EvolutiveMetricsCalculator(root_path=root_path)
-    print_success("Components initialized")
+    calculator = EvolutiveMetricsCalculator(root_path=root_path, server_name=SERVER_NAME)
+    print_success(f"Components initialized for server '{SERVER_NAME}'")
 
     # Load consolidated data
     print_step("Loading consolidated data...")
@@ -117,7 +121,7 @@ async def main_async():
 
     # Generate HTML report
     print_step("Generating evolutive HTML report...")
-    html_path = file_manager.data_sources_dir / "evolutive_report.html"
+    html_path = file_manager.reports_dir / "evolutive_report.html"
 
     generate_evolutive_report_html(
         evolutive_metrics=evolutive_metrics,
@@ -130,7 +134,7 @@ async def main_async():
     # Update index
     print_step("Updating index page...")
     metadata = consolidator.get_consolidation_info()
-    index_path = generate_index_html(file_manager.data_sources_dir, metadata=metadata)
+    index_path = generate_index_html(file_manager.reports_dir, metadata=metadata)
     print_success(f"Index updated: {index_path.name}")
 
     # Summary
@@ -139,7 +143,8 @@ async def main_async():
 
     print_header("✨ EVOLUTIVE REPORT COMPLETE")
     print(f"Duration: {duration:.2f}s")
-    print(f"Output directory: {file_manager.data_sources_dir}")
+    print(f"Data directory: {file_manager.data_sources_dir}")
+    print(f"Reports directory: {file_manager.reports_dir}")
     print(f"\n💡 Open {index_path} in your browser to view reports\n")
 
     return 0

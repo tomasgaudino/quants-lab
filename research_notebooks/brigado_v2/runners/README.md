@@ -8,11 +8,11 @@ Python scripts for generating performance analysis reports. These replace the Ju
 
 ```
 runners/
-├── README.md                  # This file
-├── run_all.py                 # Master runner - executes all reports
-├── 00_fetch_live_databases.py # Fetch databases from remote server
-├── 01_consolidate_data.py     # Data consolidation + HTML report
-└── 02_market_analysis.py      # Market analysis + HTML report
+├── README.md                   # This file
+├── run_all.py                  # Master runner - executes all reports
+├── 00_fetch_live_databases.py  # Fetch SQLite databases from remote server
+├── 01_consolidate_data.py      # Data consolidation + HTML report
+└── 02_market_analysis.py       # Market analysis + HTML report
 ```
 
 ## 🚀 Quick Start
@@ -25,7 +25,7 @@ python run_all.py
 ```
 
 This will:
-1. ✅ Fetch databases from remote server
+1. ✅ Fetch SQLite databases from remote server
 2. ✅ Check database integrity & recover if needed
 3. ✅ Verify trade-to-controller mapping
 4. ✅ Consolidate data from all databases
@@ -37,7 +37,7 @@ This will:
 ### Run Individual Reports
 
 ```bash
-# Fetch databases from remote server
+# Fetch SQLite databases from remote server
 python 00_fetch_live_databases.py
 
 # Data consolidation only
@@ -51,14 +51,19 @@ python 02_market_analysis.py
 
 All reports are generated in:
 ```
-data/data_sources/
-├── index.html                      # Main navigation page
-├── consolidation_report.html       # Consolidation report
-├── market_analysis_report.html     # Market analysis report
-├── consolidated_trades.parquet     # Data files
-├── consolidated_orders.parquet
-├── consolidated_executors.parquet
-└── consolidated_controllers.parquet
+data/
+├── live_databases/                 # SQLite databases from bot instances
+│   └── [bot-name]/
+│       ├── data/*.sqlite
+│       └── conf/controllers/*.yml
+└── data_sources/                   # Consolidated data & HTML reports
+    ├── index.html                      # Main navigation page
+    ├── consolidation_report.html       # Consolidation report
+    ├── market_analysis_report.html     # Market analysis report
+    ├── consolidated_trades.parquet     # Consolidated data files
+    ├── consolidated_orders.parquet
+    ├── consolidated_executors.parquet
+    └── consolidated_controllers.parquet
 ```
 
 ## 🎨 Features

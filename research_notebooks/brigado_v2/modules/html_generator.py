@@ -660,10 +660,17 @@ def generate_consolidation_report_html(
 """
 
     # Add bot rows with controller breakdowns
+    # Get all unique bots from both trades and controllers (some bots may have executors but no trades)
+    bots_from_trades = set(trades_with_ctrl['source_bot'].unique())
+    bots_from_controllers = set(controllers_data['source_bot'].unique())
+    all_bots = sorted(bots_from_trades | bots_from_controllers)
+
     bot_index = 0
-    for bot in sorted(trades_with_ctrl['source_bot'].unique()):
+    for bot in all_bots:
         bot_trades = trades_with_ctrl[trades_with_ctrl['source_bot'] == bot]
-        pairs = ', '.join(bot_trades['symbol'].unique())
+        # Filter out None values and convert to string
+        unique_pairs = [str(p) for p in bot_trades['symbol'].unique() if p is not None]
+        pairs = ', '.join(unique_pairs) if len(unique_pairs) > 0 else 'No trades'
 
         # Get controllers for this bot
         bot_controllers = controllers_data[controllers_data['source_bot'] == bot]['id'].tolist()
@@ -794,6 +801,8 @@ def generate_index_html(output_dir: Path, metadata: dict = None) -> Path:
         'consolidation': output_dir / 'consolidation_report.html',
         'market_analysis': output_dir / 'market_analysis_report.html',
         'evolutive': output_dir / 'evolutive_report.html',
+        'portfolio_status': output_dir / 'portfolio_status_report.html',
+        'pnl': output_dir / 'pnl_report.html',
     }
 
     available_reports = {name: path for name, path in reports.items() if path.exists()}
@@ -1133,6 +1142,66 @@ def generate_index_html(output_dir: Path, metadata: dict = None) -> Path:
                     <div class="report-description">
                         Daily evolution of market, bot, and controller metrics over time.
                         Interactive charts showing performance trends, volume evolution, and market share progression.
+                    </div>
+                    <div class="view-button">View Report →</div>
+                </div>
+            </a>
+"""
+
+        # Portfolio Status Report
+        if 'portfolio_status' in available_reports:
+            info = report_info['portfolio_status']
+            html_content += f"""
+            <a href="{info['path']}" class="report-card">
+                <div class="report-header">
+                    <div class="icon">💼</div>
+                    <h2>Portfolio Status</h2>
+                    <p>Current holdings & evolution</p>
+                </div>
+                <div class="report-body">
+                    <div class="report-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Last Updated</span>
+                            <span class="meta-value">{info['modified'].strftime('%Y-%m-%d %H:%M')}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Size</span>
+                            <span class="meta-value">{info['size_kb']:.1f} KB</span>
+                        </div>
+                    </div>
+                    <div class="report-description">
+                        Portfolio value breakdown and token holdings evolution.
+                        View current allocation, historical snapshots, and asset performance over time.
+                    </div>
+                    <div class="view-button">View Report →</div>
+                </div>
+            </a>
+"""
+
+        # PnL Report
+        if 'pnl' in available_reports:
+            info = report_info['pnl']
+            html_content += f"""
+            <a href="{info['path']}" class="report-card">
+                <div class="report-header">
+                    <div class="icon">💹</div>
+                    <h2>PnL Analysis</h2>
+                    <p>Profit & loss tracking</p>
+                </div>
+                <div class="report-body">
+                    <div class="report-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Last Updated</span>
+                            <span class="meta-value">{info['modified'].strftime('%Y-%m-%d %H:%M')}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Size</span>
+                            <span class="meta-value">{info['size_kb']:.1f} KB</span>
+                        </div>
+                    </div>
+                    <div class="report-description">
+                        Bot-level profit and loss analysis with position tracking, break-even prices,
+                        realized/unrealized PnL, and daily performance breakdown.
                     </div>
                     <div class="view-button">View Report →</div>
                 </div>

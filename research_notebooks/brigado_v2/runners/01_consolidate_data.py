@@ -7,6 +7,7 @@ and generates an HTML report.
 """
 
 import sys
+import os
 from pathlib import Path
 from datetime import datetime
 import numpy as np
@@ -14,9 +15,12 @@ import numpy as np
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
-from research_notebooks.brigado_v2.data_consolidator import DataConsolidator
-from research_notebooks.brigado_v2.file_manager import FileManager
-from research_notebooks.brigado_v2.html_generator import generate_consolidation_report_html, generate_index_html
+from research_notebooks.brigado_v2.modules.data_consolidator import DataConsolidator
+from research_notebooks.brigado_v2.modules.file_manager import FileManager
+from research_notebooks.brigado_v2.modules.html_generator import generate_consolidation_report_html, generate_index_html
+
+# Get server name from environment or use default
+SERVER_NAME = os.getenv('BRIGADO_SERVER', 'brigado')
 
 
 def print_header(title: str):
@@ -54,10 +58,10 @@ def main():
     print(f"Started: {start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     # Initialize
-    print_step("Initializing components...")
-    consolidator = DataConsolidator()
-    file_manager = FileManager()
-    print_success("Components initialized")
+    print_step(f"Initializing components for server '{SERVER_NAME}'...")
+    consolidator = DataConsolidator(server_name=SERVER_NAME)
+    file_manager = FileManager(server_name=SERVER_NAME)
+    print_success(f"Components initialized for server '{SERVER_NAME}'")
 
     # Discover databases
     print_step("Discovering databases...")
@@ -84,7 +88,7 @@ def main():
             size_mb = path.stat().st_size / (1024 * 1024)
             print_metric(data_type, f"{path.name} ({size_mb:.2f} MB)", indent=6)
 
-    # Load consolidated data
+    # Load consolidated data (only what we need for HTML report)
     print_step("Loading consolidated data...")
     data = consolidator.load_consolidated_data(use_latest=True)
     metadata = consolidator.get_consolidation_info()
@@ -96,25 +100,53 @@ def main():
     print_metric("Executors", f"{len(data['executors']):,}", indent=6)
     print_metric("Controllers", f"{len(data['controllers']):,}", indent=6)
 
-    # Create trade-to-controller mapping
+    # Store executor count before we start processing
+    total_executors = len(data['executors'])
+
+    # Create trade-to-controller mapping (optimized for large datasets)
     print_step("Creating trade-to-controller mapping...")
     order_to_controller = {}
 
     if 'executors' in data and len(data['executors']) > 0:
         executors_df = data['executors']
-        executors_filtered = executors_df[executors_df['net_pnl_quote'] != 0]
 
-        for _, executor in executors_filtered.iterrows():
-            controller_id = executor.get('controller_id')
-            if controller_id and 'custom_info_parsed' in executor and isinstance(executor['custom_info_parsed'], dict):
-                order_ids = executor['custom_info_parsed'].get('order_ids', [])
-                if isinstance(order_ids, np.ndarray):
-                    order_ids = order_ids.tolist()
-                elif not isinstance(order_ids, (list, tuple)):
-                    order_ids = list(order_ids) if order_ids else []
-                for oid in order_ids:
-                    if oid:
-                        order_to_controller[str(oid)] = controller_id
+        # Filter first to reduce memory
+        executors_filtered = executors_df[
+            (executors_df['net_pnl_quote'] != 0) &
+            (executors_df['controller_id'].notna())
+        ][['controller_id', 'custom_info_parsed']].copy()
+
+        print_info(f"Processing {len(executors_filtered):,} executors with controllers...")
+
+        # Process in chunks to avoid memory issues
+        chunk_size = 100000
+        for i in range(0, len(executors_filtered), chunk_size):
+            chunk = executors_filtered.iloc[i:i+chunk_size]
+
+            for _, executor in chunk.iterrows():
+                controller_id = executor['controller_id']
+                custom_info = executor.get('custom_info_parsed')
+
+                if isinstance(custom_info, dict):
+                    order_ids = custom_info.get('order_ids', [])
+                    if isinstance(order_ids, np.ndarray):
+                        order_ids = order_ids.tolist()
+                    elif not isinstance(order_ids, (list, tuple)):
+                        order_ids = list(order_ids) if order_ids else []
+
+                    for oid in order_ids:
+                        if oid:
+                            order_to_controller[str(oid)] = controller_id
+
+            if (i + chunk_size) < len(executors_filtered):
+                print_info(f"  Processed {i + chunk_size:,} / {len(executors_filtered):,} executors...", indent=4)
+
+        # Clean up to free memory
+        del executors_filtered
+        del executors_df
+        del data['executors']  # Free up executor memory - we don't need it anymore
+        import gc
+        gc.collect()
 
     trades_with_ctrl = data['trades'].copy()
     trades_with_ctrl['controller_id'] = trades_with_ctrl['order_id'].map(order_to_controller)
@@ -134,7 +166,7 @@ def main():
 
     # Generate HTML report
     print_step("Generating HTML consolidation report...")
-    html_path = file_manager.data_sources_dir / "consolidation_report.html"
+    html_path = file_manager.reports_dir / "consolidation_report.html"
     generate_consolidation_report_html(
         output_path=html_path,
         metadata=metadata,
@@ -147,7 +179,7 @@ def main():
 
     # Generate index
     print_step("Updating index page...")
-    index_path = generate_index_html(file_manager.data_sources_dir, metadata=metadata)
+    index_path = generate_index_html(file_manager.reports_dir, metadata=metadata)
     print_success(f"Index updated: {index_path.name}")
 
     # Summary
@@ -156,7 +188,8 @@ def main():
 
     print_header("✨ CONSOLIDATION COMPLETE")
     print(f"Duration: {duration:.2f}s")
-    print(f"Output directory: {file_manager.data_sources_dir}")
+    print(f"Data directory: {file_manager.data_sources_dir}")
+    print(f"Reports directory: {file_manager.reports_dir}")
     print(f"\n💡 Open {index_path} in your browser to view reports\n")
 
     return 0

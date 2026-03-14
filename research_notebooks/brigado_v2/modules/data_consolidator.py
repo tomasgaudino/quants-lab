@@ -25,6 +25,76 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# CloseType mapping (from hummingbot.strategy_v2.models.executors)
+CLOSE_TYPE_MAP = {
+    'TIME_LIMIT': 1,
+    'STOP_LOSS': 2,
+    'TAKE_PROFIT': 3,
+    'EXPIRED': 4,
+    'EARLY_STOP': 5,
+    'TRAILING_STOP': 6,
+    'INSUFFICIENT_BALANCE': 7,
+    'FAILED': 8,
+    'COMPLETED': 9,
+    'POSITION_HOLD': 10,
+    'SYSTEM_CLEANUP': 11,  # Custom value for system cleanup
+    # Also handle int values
+    1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10, 11: 11,
+    # Handle string representations of numbers
+    '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, '11': 11,
+}
+
+# RunnableStatus mapping (from hummingbot.strategy_v2.models.base)
+RUNNABLE_STATUS_MAP = {
+    'NOT_STARTED': 1,
+    'RUNNING': 2,
+    'SHUTTING_DOWN': 3,
+    'TERMINATED': 4,
+    # Also handle int values
+    1: 1, 2: 2, 3: 3, 4: 4,
+    # Handle string representations of numbers
+    '1': 1, '2': 2, '3': 3, '4': 4,
+}
+
+
+def standardize_close_type(value):
+    """Convert close_type to integer, handling both enum names and int values."""
+    if pd.isna(value):
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        # Try to get from mapping
+        if value in CLOSE_TYPE_MAP:
+            return CLOSE_TYPE_MAP[value]
+        # Try to convert string number
+        try:
+            return int(value)
+        except ValueError:
+            logger.warning(f"Unknown close_type value: {value}, setting to None")
+            return None
+    return None
+
+
+def standardize_status(value):
+    """Convert status to integer, handling both enum names and int values."""
+    if pd.isna(value):
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    if isinstance(value, str):
+        # Try to get from mapping
+        if value in RUNNABLE_STATUS_MAP:
+            return RUNNABLE_STATUS_MAP[value]
+        # Try to convert string number
+        try:
+            return int(value)
+        except ValueError:
+            logger.warning(f"Unknown status value: {value}, setting to None")
+            return None
+    return None
+
+
 class DataConsolidator:
     """
     Consolidates data from multiple Hummingbot databases into unified data sources.
@@ -36,23 +106,30 @@ class DataConsolidator:
     - Maintain metadata about source databases
     """
 
-    def __init__(self, base_path: Optional[str] = None):
+    def __init__(self, base_path: Optional[str] = None, server_name: str = "brigado"):
         """
         Initialize data consolidator.
 
         Args:
             base_path: Base path for brigado_v2 directory
+            server_name: Name of the server (e.g., 'brigado', 'old_brigado')
         """
         if base_path is None:
             current_file = Path(__file__)
-            base_path = current_file.parent
+            base_path = current_file.parent.parent  # Go up to brigado_v2
 
         self.base_path = Path(base_path)
-        self.live_databases_dir = self.base_path / "data" / "live_databases"
-        self.data_sources_dir = self.base_path / "data" / "data_sources"
+        self.server_name = server_name
 
-        # Ensure data_sources directory exists
-        self.data_sources_dir.mkdir(parents=True, exist_ok=True)
+        # Use FileManager for consistent path management
+        from research_notebooks.brigado_v2.modules.file_manager import FileManager
+        self.file_manager = FileManager(server_name=server_name)
+
+        self.live_databases_dir = self.file_manager.live_databases_dir
+        self.data_sources_dir = self.file_manager.data_sources_dir
+
+        # Hummingbot API directory (optional, for direct API exports)
+        self.hummingbot_api_dir = self.file_manager.server_dir / "hummingbot_api"
 
     def discover_databases(self) -> List[Dict[str, any]]:
         """
@@ -61,45 +138,9 @@ class DataConsolidator:
         Returns:
             List of dicts with database info (bot_name, db_path, config_path, size)
         """
-        databases = []
-
-        if not self.live_databases_dir.exists():
-            logger.warning(f"Live databases directory not found: {self.live_databases_dir}")
-            return databases
-
-        # Iterate through bot instance directories
-        for bot_dir in self.live_databases_dir.iterdir():
-            if not bot_dir.is_dir():
-                continue  # Skip files (like fetch logs)
-
-            # Look for .sqlite file in data/ subdirectory
-            data_dir = bot_dir / "data"
-            if not data_dir.exists():
-                logger.warning(f"No data directory found for bot: {bot_dir.name}")
-                continue
-
-            sqlite_files = list(data_dir.glob("*.sqlite"))
-            if not sqlite_files:
-                logger.warning(f"No SQLite database found in: {data_dir}")
-                continue
-
-            # Get the first .sqlite file (should only be one)
-            db_path = sqlite_files[0]
-
-            # Look for config files
-            config_dir = bot_dir / "conf" / "controllers"
-            config_files = list(config_dir.glob("*.yml")) if config_dir.exists() else []
-
-            databases.append({
-                'bot_name': bot_dir.name,
-                'db_path': db_path,
-                'config_dir': config_dir if config_dir.exists() else None,
-                'config_files': config_files,
-                'size_mb': db_path.stat().st_size / (1024 * 1024),
-                'modified': datetime.fromtimestamp(db_path.stat().st_mtime)
-            })
-
-        logger.info(f"Discovered {len(databases)} database(s)")
+        # Use FileManager's discover method for consistency
+        databases = self.file_manager.discover_live_databases()
+        logger.info(f"Discovered {len(databases)} database(s) for server '{self.server_name}'")
         return databases
 
     def load_from_database(self, db_path: Path, bot_name: str) -> Dict[str, pd.DataFrame]:
@@ -155,9 +196,9 @@ class DataConsolidator:
                 logger.warning(f"Could not load orders from {bot_name}: {e}")
                 orders = pd.DataFrame()
 
-            # Load Executors
+            # Load Executors (exclude close_type = 7)
             try:
-                executors = pd.read_sql_query("SELECT * FROM Executors", conn)
+                executors = pd.read_sql_query("SELECT * FROM Executors WHERE close_type != 7", conn)
                 if len(executors) > 0:
                     # Parse JSON fields
                     if 'config' in executors.columns:
@@ -212,6 +253,71 @@ class DataConsolidator:
         finally:
             conn.close()
 
+    def load_from_hummingbot_api(self) -> Dict[str, pd.DataFrame]:
+        """
+        Load data from hummingbot-api PostgreSQL exports.
+
+        Returns:
+            Dict with DataFrames for trades, executors and controllers
+        """
+        logger.info("Loading data from hummingbot-api...")
+
+        data = {
+            'trades': pd.DataFrame(),
+            'orders': pd.DataFrame(),
+            'executors': pd.DataFrame(),
+            'controllers': pd.DataFrame()
+        }
+
+        # Check if hummingbot_api directory exists
+        if not self.hummingbot_api_dir.exists():
+            logger.warning(f"Hummingbot API directory not found: {self.hummingbot_api_dir}")
+            return data
+
+        # Load trades
+        trades_path = self.hummingbot_api_dir / "trades.parquet"
+        if trades_path.exists():
+            data['trades'] = pd.read_parquet(trades_path)
+            logger.info(f"  Loaded {len(data['trades'])} trades from hummingbot-api")
+        else:
+            logger.warning(f"  No trades file found: {trades_path}")
+
+        # Load executors
+        executors_path = self.hummingbot_api_dir / "executors.parquet"
+        if executors_path.exists():
+            data['executors'] = pd.read_parquet(executors_path)
+
+            # Re-parse JSON fields
+            if 'config' in data['executors'].columns:
+                data['executors']['config_parsed'] = data['executors']['config'].apply(
+                    lambda x: json.loads(x) if x and isinstance(x, str) else (x if isinstance(x, dict) else {})
+                )
+            if 'custom_info' in data['executors'].columns:
+                data['executors']['custom_info_parsed'] = data['executors']['custom_info'].apply(
+                    lambda x: json.loads(x) if x and isinstance(x, str) else (x if isinstance(x, dict) else {})
+                )
+
+            logger.info(f"  Loaded {len(data['executors'])} executors from hummingbot-api")
+        else:
+            logger.warning(f"  No executors file found: {executors_path}")
+
+        # Load controllers
+        controllers_path = self.hummingbot_api_dir / "controllers.parquet"
+        if controllers_path.exists():
+            data['controllers'] = pd.read_parquet(controllers_path)
+
+            # Re-parse JSON config
+            if 'config' in data['controllers'].columns:
+                data['controllers']['config_parsed'] = data['controllers']['config'].apply(
+                    lambda x: json.loads(x) if x and isinstance(x, str) else (x if isinstance(x, dict) else {})
+                )
+
+            logger.info(f"  Loaded {len(data['controllers'])} controllers from hummingbot-api")
+        else:
+            logger.warning(f"  No controllers file found: {controllers_path}")
+
+        return data
+
     def consolidate_all(self, force_refresh: bool = False) -> Dict[str, Path]:
         """
         Consolidate data from all discovered databases.
@@ -230,8 +336,7 @@ class DataConsolidator:
         databases = self.discover_databases()
 
         if not databases:
-            logger.error("No databases found to consolidate!")
-            return {}
+            logger.warning("No SQLite databases found!")
 
         # Initialize combined DataFrames
         all_trades = []
@@ -252,6 +357,22 @@ class DataConsolidator:
             if not data['controllers'].empty:
                 all_controllers.append(data['controllers'])
 
+        # Load data from hummingbot-api (PostgreSQL)
+        logger.info("\nLoading data from hummingbot-api...")
+        hbapi_data = self.load_from_hummingbot_api()
+
+        if not hbapi_data['trades'].empty:
+            all_trades.append(hbapi_data['trades'])
+            logger.info(f"  Added {len(hbapi_data['trades'])} trades from hummingbot-api")
+
+        if not hbapi_data['executors'].empty:
+            all_executors.append(hbapi_data['executors'])
+            logger.info(f"  Added {len(hbapi_data['executors'])} executors from hummingbot-api")
+
+        if not hbapi_data['controllers'].empty:
+            all_controllers.append(hbapi_data['controllers'])
+            logger.info(f"  Added {len(hbapi_data['controllers'])} controllers from hummingbot-api")
+
         # Combine all DataFrames
         logger.info("\nCombining data from all sources...")
 
@@ -259,6 +380,12 @@ class DataConsolidator:
 
         if all_trades:
             trades_df = pd.concat(all_trades, ignore_index=True)
+
+            # Standardize data types before saving
+            # Convert order_id to string (mixed types from different sources)
+            if 'order_id' in trades_df.columns:
+                trades_df['order_id'] = trades_df['order_id'].astype(str)
+
             trades_path = self.data_sources_dir / "consolidated_trades.parquet"
             trades_df.to_parquet(trades_path, index=False)
             output_paths['trades'] = trades_path
@@ -273,15 +400,39 @@ class DataConsolidator:
 
         if all_executors:
             executors_df = pd.concat(all_executors, ignore_index=True)
+
+            # Standardize data types before saving
+            # Convert id column to string (mixed types from different sources)
+            if 'id' in executors_df.columns:
+                executors_df['id'] = executors_df['id'].astype(str)
+
+            # Standardize close_type to integer (handles both enum names and int values)
+            if 'close_type' in executors_df.columns:
+                executors_df['close_type'] = executors_df['close_type'].apply(standardize_close_type)
+
+            # Standardize status to integer (handles both enum names and int values)
+            if 'status' in executors_df.columns:
+                executors_df['status'] = executors_df['status'].apply(standardize_status)
+
             executors_path = self.data_sources_dir / "consolidated_executors.parquet"
-            executors_df.to_parquet(executors_path, index=False)
+            # Drop parsed columns before saving (parquet can't serialize complex objects)
+            executors_to_save = executors_df.drop(columns=['config_parsed', 'custom_info_parsed'], errors='ignore')
+            executors_to_save.to_parquet(executors_path, index=False)
             output_paths['executors'] = executors_path
             logger.info(f"  ✓ Saved {len(executors_df):,} executors to {executors_path.name}")
 
         if all_controllers:
             controllers_df = pd.concat(all_controllers, ignore_index=True)
+
+            # Standardize data types before saving
+            # Convert id column to string (mixed types from different sources)
+            if 'id' in controllers_df.columns:
+                controllers_df['id'] = controllers_df['id'].astype(str)
+
             controllers_path = self.data_sources_dir / "consolidated_controllers.parquet"
-            controllers_df.to_parquet(controllers_path, index=False)
+            # Drop parsed column before saving (parquet can't serialize complex objects)
+            controllers_to_save = controllers_df.drop(columns=['config_parsed'], errors='ignore')
+            controllers_to_save.to_parquet(controllers_path, index=False)
             output_paths['controllers'] = controllers_path
             logger.info(f"  ✓ Saved {len(controllers_df):,} controllers to {controllers_path.name}")
 
@@ -356,10 +507,28 @@ class DataConsolidator:
 
         if executors_path and executors_path.exists():
             data['executors'] = pd.read_parquet(executors_path)
+
+            # Re-parse JSON fields
+            if 'config' in data['executors'].columns:
+                data['executors']['config_parsed'] = data['executors']['config'].apply(
+                    lambda x: json.loads(x) if x and isinstance(x, str) else (x if isinstance(x, dict) else {})
+                )
+            if 'custom_info' in data['executors'].columns:
+                data['executors']['custom_info_parsed'] = data['executors']['custom_info'].apply(
+                    lambda x: json.loads(x) if x and isinstance(x, str) else (x if isinstance(x, dict) else {})
+                )
+
             logger.info(f"Loaded {len(data['executors']):,} executors from {executors_path.name}")
 
         if controllers_path and controllers_path.exists():
             data['controllers'] = pd.read_parquet(controllers_path)
+
+            # Re-parse JSON config
+            if 'config' in data['controllers'].columns:
+                data['controllers']['config_parsed'] = data['controllers']['config'].apply(
+                    lambda x: json.loads(x) if x and isinstance(x, str) else (x if isinstance(x, dict) else {})
+                )
+
             logger.info(f"Loaded {len(data['controllers']):,} controllers from {controllers_path.name}")
 
         return data
