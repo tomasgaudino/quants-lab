@@ -70,6 +70,7 @@ def main():
         (script_dir / "02_market_analysis.py", "Market Analysis"),
         (script_dir / "03_evolutive_report.py", "Evolutive Report"),
         (script_dir / "04_portfolio_evolution.py", "Portfolio Evolution"),
+        (script_dir / "05_executive_dashboard.py", "Executive Dashboard"),
     ]
 
     # Track results
