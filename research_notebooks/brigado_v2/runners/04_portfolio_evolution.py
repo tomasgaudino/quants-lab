@@ -489,25 +489,49 @@ def generate_html_report(
         }}
 
         .header {{
+            background: linear-gradient(135deg, #2b3139 0%, #1e2329 100%);
+            border-bottom: 3px solid #f0b90b;
+            color: #f0b90b;
+            padding: 40px;
             text-align: center;
-            margin-bottom: 40px;
-            padding: 30px;
-            background: linear-gradient(135deg, #1e2329 0%, #0b0e11 100%);
-            border-radius: 8px;
-            border: 1px solid #2b3139;
+            position: relative;
         }}
 
         .header h1 {{
             font-size: 2.5em;
-            color: #f0b90b;
             margin-bottom: 10px;
+            font-weight: 600;
             text-shadow: 0 0 20px rgba(240, 185, 11, 0.3);
         }}
 
-        .header .date {{
+        .header p {{
             font-size: 1.1em;
             color: #848e9c;
-            margin-bottom: 20px;
+        }}
+
+        .nav-link {{
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: #2b3139;
+            color: #f0b90b;
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-decoration: none;
+            border: 1px solid #f0b90b;
+            transition: all 0.3s;
+            font-weight: 600;
+        }}
+
+        .nav-link:hover {{
+            background: #f0b90b;
+            color: #0b0e11;
+        }}
+
+        .header .date {{
+            font-size: 0.95em;
+            color: #848e9c;
+            margin-top: 10px;
         }}
 
         .nav-display {{
@@ -585,51 +609,38 @@ def generate_html_report(
             min-height: 500px;
         }}
 
-        .navigation {{
-            text-align: center;
-            margin: 40px 0;
-        }}
-
-        .nav-button {{
-            display: inline-block;
-            background: #2b3139;
-            color: #f0b90b;
-            padding: 12px 30px;
-            border-radius: 4px;
-            text-decoration: none;
-            margin: 0 10px;
-            transition: all 0.3s;
+        .container-wrapper {{
+            max-width: 1400px;
+            margin: 0 auto;
+            background: #1e2329;
+            border-radius: 8px;
             border: 1px solid #2b3139;
+            overflow: hidden;
         }}
 
-        .nav-button:hover {{
-            background: #f0b90b;
-            color: #0b0e11;
-            border-color: #f0b90b;
-            transform: translateY(-2px);
+        .content {{
+            padding: 40px;
         }}
 
         .footer {{
+            background: #1e2329;
+            border-top: 1px solid #2b3139;
+            padding: 20px;
             text-align: center;
             color: #848e9c;
-            margin-top: 50px;
-            padding: 20px;
             font-size: 0.9em;
         }}
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="navigation">
-            <a href="index.html" class="nav-button">← Back to Dashboard</a>
-        </div>
-
+    <div class="container-wrapper">
         <div class="header">
-            <h1>📊 Portfolio Evolution</h1>
-            <div class="date">Report Date: {latest_date}</div>
-            <div class="nav-label">Total Net Asset Value</div>
-            <div class="nav-display">R$ {current_nav:,.2f}</div>
+            <a href="index.html" class="nav-link">← Back to Dashboard</a>
+            <h1>💰 Portfolio Evolution</h1>
+            <p>Portfolio reconciliation with NAV tracking, WAC calculations, and PnL analysis</p>
+            <p class="date">Generated: {latest_date}</p>
         </div>
+        <div class="content">
 
         <div class="section">
             <h2>Current Positions (End of Day)</h2>
@@ -687,6 +698,7 @@ def generate_html_report(
             <div class="chart-container" id="pnlChart"></div>
         </div>
 
+        </div>
         <div class="footer">
             <p>Generated on {datetime.now().strftime('%Y-%m-%d at %H:%M:%S')}</p>
             <p>Brigado v2 Portfolio Evolution System</p>
