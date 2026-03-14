@@ -798,6 +798,7 @@ def generate_index_html(output_dir: Path, metadata: dict = None) -> Path:
 
     # Check which reports exist
     reports = {
+        'executive_dashboard': output_dir / 'executive_dashboard.html',
         'consolidation': output_dir / 'consolidation_report.html',
         'market_analysis': output_dir / 'market_analysis_report.html',
         'evolutive': output_dir / 'evolutive_report.html',
@@ -1057,6 +1058,37 @@ def generate_index_html(output_dir: Path, metadata: dict = None) -> Path:
         <div class="reports-grid">
 """
 
+        # Executive Dashboard (featured first)
+        if 'executive_dashboard' in available_reports:
+            info = report_info['executive_dashboard']
+            html_content += f"""
+            <a href="{info['path']}" class="report-card" style="grid-column: 1 / -1; border: 2px solid #f0b90b;">
+                <div class="report-header" style="background: linear-gradient(135deg, #f0b90b 0%, #d4a00a 100%);">
+                    <div class="icon" style="font-size: 4em;">📊</div>
+                    <h2 style="color: #0b0e11;">Executive Dashboard</h2>
+                    <p style="color: #1e2329;">Real-time Portfolio & Trading Overview</p>
+                </div>
+                <div class="report-body">
+                    <div class="report-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Last Updated</span>
+                            <span class="meta-value">{info['modified'].strftime('%Y-%m-%d %H:%M')}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Size</span>
+                            <span class="meta-value">{info['size_kb']:.1f} KB</span>
+                        </div>
+                    </div>
+                    <div class="report-description">
+                        <strong>Single-page executive view with all key metrics:</strong> Total NAV (BRL/USDT),
+                        current positions with asset allocation, daily portfolio evolution, and overall bots
+                        trading performance. Includes trading pair selector for detailed base/quote volume analysis.
+                    </div>
+                    <div class="view-button" style="background: #f0b90b; color: #0b0e11;">View Dashboard →</div>
+                </div>
+            </a>
+"""
+
         # Consolidation Report
         if 'consolidation' in available_reports:
             info = report_info['consolidation']
@@ -1257,8 +1289,8 @@ def generate_index_html(output_dir: Path, metadata: dict = None) -> Path:
 </body>
 </html>"""
 
-    # Save index.html
-    index_path = output_dir / 'index.html'
+    # Save reports_index.html (main index is now executive dashboard)
+    index_path = output_dir / 'reports_index.html'
     with open(index_path, 'w', encoding='utf-8') as f:
         f.write(html_content)
 
