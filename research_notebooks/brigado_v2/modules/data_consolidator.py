@@ -143,6 +143,100 @@ class DataConsolidator:
         logger.info(f"Discovered {len(databases)} database(s) for server '{self.server_name}'")
         return databases
 
+    def check_and_recover_database(self, db_path: Path) -> bool:
+        """
+        Check database integrity and attempt recovery if corrupted.
+
+        Args:
+            db_path: Path to SQLite database
+
+        Returns:
+            True if database is OK or was recovered, False if recovery failed
+        """
+        import subprocess
+        import tempfile
+
+        try:
+            # Check integrity
+            try:
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA integrity_check")
+                result = cursor.fetchone()
+                conn.close()
+
+                if result[0] == 'ok':
+                    return True
+
+                logger.warning(f"Database corrupted: {db_path.name}, attempting recovery...")
+            except sqlite3.DatabaseError as e:
+                # Database is so corrupted it can't even run integrity check
+                logger.warning(f"Database severely corrupted: {db_path.name} ({str(e)}), attempting recovery...")
+
+            # Backup corrupted database
+            backup_path = db_path.with_suffix('.backup')
+            if backup_path.exists():
+                backup_path.unlink()
+
+            import shutil
+            shutil.copy2(db_path, backup_path)
+            logger.info(f"Created backup: {backup_path.name}")
+
+            # Attempt recovery
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.sql', delete=False) as tmp_sql:
+                # Export using .recover command
+                recover_cmd = f"sqlite3 '{db_path}' '.recover'"
+                result = subprocess.run(
+                    recover_cmd,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=60
+                )
+
+                if result.returncode != 0:
+                    logger.error(f"Recovery failed: {result.stderr}")
+                    return False
+
+                tmp_sql.write(result.stdout)
+                tmp_sql_path = tmp_sql.name
+
+            # Rebuild database
+            recovered_path = db_path.with_suffix('.recovered')
+            if recovered_path.exists():
+                recovered_path.unlink()
+
+            rebuild_cmd = f"sqlite3 '{recovered_path}' < '{tmp_sql_path}'"
+            result = subprocess.run(rebuild_cmd, shell=True, capture_output=True, timeout=60)
+
+            if result.returncode != 0:
+                logger.error(f"Rebuild failed: {result.stderr}")
+                return False
+
+            # Verify recovered database
+            conn = sqlite3.connect(recovered_path)
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA integrity_check")
+            verify_result = cursor.fetchone()
+            conn.close()
+
+            if verify_result[0] == 'ok':
+                # Replace original with recovered
+                db_path.unlink()
+                recovered_path.rename(db_path)
+                logger.info(f"✓ Database recovered: {db_path.name}")
+
+                # Cleanup
+                Path(tmp_sql_path).unlink()
+                return True
+            else:
+                logger.error(f"Recovery verification failed: {verify_result[0]}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Recovery error: {str(e)}")
+            return False
+
     def load_from_database(self, db_path: Path, bot_name: str) -> Dict[str, pd.DataFrame]:
         """
         Load all tables from a single database.
@@ -156,6 +250,16 @@ class DataConsolidator:
         """
         logger.info(f"Loading data from {bot_name}...")
 
+        # First check and attempt recovery if corrupted
+        if not self.check_and_recover_database(db_path):
+            logger.error(f"Cannot load database {bot_name} - recovery failed")
+            return {
+                'trades': pd.DataFrame(),
+                'orders': pd.DataFrame(),
+                'executors': pd.DataFrame(),
+                'controllers': pd.DataFrame()
+            }
+
         conn = sqlite3.connect(db_path)
 
         try:
@@ -166,11 +270,21 @@ class DataConsolidator:
                 float_cols = ["amount", "price", "trade_fee_in_quote"]
                 for col in float_cols:
                     if col in trades.columns:
-                        trades[col] = trades[col] / 1e6
+                        # Handle both numeric and string types (recovered DBs may have strings)
+                        try:
+                            trades[col] = pd.to_numeric(trades[col], errors='coerce') / 1e6
+                        except Exception as e:
+                            logger.warning(f"Could not convert {col} to numeric: {e}")
 
                 # Add timestamp conversion
                 if 'timestamp' in trades.columns:
-                    trades["timestamp"] = pd.to_datetime(trades["timestamp"], unit="ms")
+                    try:
+                        # Try numeric timestamp first
+                        trades["timestamp"] = pd.to_datetime(pd.to_numeric(trades["timestamp"], errors='coerce'), unit="ms")
+                    except Exception as e:
+                        logger.warning(f"Could not convert timestamp: {e}, trying general conversion")
+                        # Fallback to general datetime parsing
+                        trades["timestamp"] = pd.to_datetime(trades["timestamp"], errors='coerce')
 
                 # Add source metadata
                 trades['source_bot'] = bot_name
@@ -180,11 +294,11 @@ class DataConsolidator:
             try:
                 orders = pd.read_sql_query("SELECT * FROM 'Order'", conn)
                 if len(orders) > 0:
-                    # Convert scaled integers
+                    # Convert scaled integers (handle strings from recovered DBs)
                     if 'amount' in orders.columns:
-                        orders['amount'] = orders['amount'] / 1e6
+                        orders['amount'] = pd.to_numeric(orders['amount'], errors='coerce') / 1e6
                     if 'price' in orders.columns:
-                        orders['price'] = orders['price'] / 1e6
+                        orders['price'] = pd.to_numeric(orders['price'], errors='coerce') / 1e6
                     if 'creation_timestamp' in orders.columns:
                         orders['creation_timestamp'] = pd.to_datetime(orders['creation_timestamp'], unit="ms")
                     if 'last_update_timestamp' in orders.columns:
