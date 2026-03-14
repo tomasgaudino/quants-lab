@@ -3,6 +3,7 @@
 Live Database Fetcher
 
 Fetches SQLite databases and YAML configuration files from the remote Hummingbot server.
+Also fetches PostgreSQL tables (token_states, account_states) and saves as parquet.
 """
 
 import sys
@@ -15,12 +16,17 @@ import json
 from typing import List, Dict, Optional
 import sqlite3
 import pandas as pd
+from dotenv import load_dotenv
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
 from research_notebooks.brigado_v2.modules.file_manager import FileManager
 
+# Load environment variables from .env file
+env_path = Path(__file__).parent.parent / '.env'
+if env_path.exists():
+    load_dotenv(env_path)
 
 # ============================================================================
 #                            CONFIGURATION
@@ -31,10 +37,18 @@ SERVER_NAME = os.getenv('BRIGADO_SERVER', 'brigado')
 
 # SSH Configuration - hostname to connect to
 SSH_HOST = os.getenv('SSH_HOST', 'brigado')  # SSH hostname from ~/.ssh/config or IP
-REMOTE_PATHS = [
-    "hummingbot-api/bots/instances",
-    "hummingbot-api/bots/archived"
-]
+REMOTE_PATHS_STR = os.getenv('REMOTE_PATHS', 'hummingbot-api/bots/instances,hummingbot-api/bots/archived')
+REMOTE_PATHS = [p.strip() for p in REMOTE_PATHS_STR.split(',')]
+
+# PostgreSQL Configuration
+POSTGRES_HOST = os.getenv('POSTGRES_HOST', 'brigado')
+POSTGRES_PORT = os.getenv('POSTGRES_PORT', '5432')
+POSTGRES_DB = os.getenv('POSTGRES_DB', 'hummingbot_api')
+POSTGRES_USER = os.getenv('POSTGRES_USER', 'hbot')
+POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', 'hummingbot-api')
+POSTGRES_DOCKER_CONTAINER = os.getenv('POSTGRES_DOCKER_CONTAINER', 'hummingbot-postgres')
+POSTGRES_TABLES_STR = os.getenv('POSTGRES_TABLES', 'token_states,account_states')
+POSTGRES_TABLES = [t.strip() for t in POSTGRES_TABLES_STR.split(',')]
 
 # Local Configuration - use FileManager for consistent paths
 file_manager = FileManager(server_name=SERVER_NAME)
@@ -176,9 +190,14 @@ def fetch_bot_instance_data(bot_name: str, remote_base_path: str) -> Dict:
 
     Returns:
         Dict with fetch results
+
+    Note:
+        - Active instances: Always fetch (live databases)
+        - Archived instances: Only fetch if not already present locally
     """
     # Determine source type from path
     source_type = "archived" if "archived" in remote_base_path else "active"
+    is_archived = source_type == "archived"
     print_info(f"Processing: {bot_name} ({source_type})")
 
     result = {
@@ -189,7 +208,8 @@ def fetch_bot_instance_data(bot_name: str, remote_base_path: str) -> Dict:
         'databases': [],
         'configs': [],
         'errors': [],
-        'replaced_files': []
+        'replaced_files': [],
+        'skipped_files': []
     }
 
     # Create local directory for this bot
@@ -212,8 +232,28 @@ def fetch_bot_instance_data(bot_name: str, remote_base_path: str) -> Dict:
                 local_db_path = bot_local_path / "data" / filename
                 local_db_path.parent.mkdir(parents=True, exist_ok=True)
 
-                # Check if file exists (will be replaced)
+                # Check if file exists
                 file_existed = local_db_path.exists()
+
+                # For archived databases, skip if already exists locally
+                if is_archived and file_existed:
+                    file_size = local_db_path.stat().st_size
+                    result['skipped_files'].append({
+                        'filename': filename,
+                        'type': 'database',
+                        'reason': 'already_exists'
+                    })
+                    result['databases'].append({
+                        'filename': filename,
+                        'local_path': str(local_db_path),
+                        'size_bytes': file_size,
+                        'size_mb': round(file_size / (1024 * 1024), 2),
+                        'skipped': True
+                    })
+                    print_metric(filename, f"{round(file_size / (1024 * 1024), 2)} MB (skipped - already exists)", indent=6)
+                    continue
+
+                # For active instances or new archived files, download
                 if file_existed:
                     result['replaced_files'].append({
                         'filename': filename,
@@ -224,14 +264,33 @@ def fetch_bot_instance_data(bot_name: str, remote_base_path: str) -> Dict:
 
                 if success:
                     file_size = local_db_path.stat().st_size
+                    action = "replaced" if file_existed else "downloaded"
+
+                    # For active instances, check and recover immediately after download
+                    if not is_archived:
+                        print_metric(filename, f"{round(file_size / (1024 * 1024), 2)} MB ({action}) - checking integrity...", indent=6)
+                        is_corrupt, recovery_success, details = check_database_corruption(local_db_path)
+
+                        if is_corrupt:
+                            if recovery_success:
+                                print_success(f"      ✓ Recovered: {details}")
+                                action += ", recovered"
+                            else:
+                                print_warning(f"      ⚠ Recovery failed: {details}")
+                                action += ", CORRUPT"
+                        else:
+                            print_info(f"      ✓ Integrity OK", indent=6)
+                    else:
+                        print_metric(filename, f"{round(file_size / (1024 * 1024), 2)} MB ({action})", indent=6)
+
                     result['databases'].append({
                         'filename': filename,
                         'local_path': str(local_db_path),
                         'size_bytes': file_size,
                         'size_mb': round(file_size / (1024 * 1024), 2),
-                        'replaced': file_existed
+                        'replaced': file_existed,
+                        'skipped': False
                     })
-                    print_metric(filename, f"{round(file_size / (1024 * 1024), 2)} MB", indent=6)
                 else:
                     result['errors'].append(f"Failed to download {filename}")
 
@@ -252,6 +311,24 @@ def fetch_bot_instance_data(bot_name: str, remote_base_path: str) -> Dict:
                 local_config_path.parent.mkdir(parents=True, exist_ok=True)
 
                 file_existed = local_config_path.exists()
+
+                # For archived configs, skip if already exists locally
+                if is_archived and file_existed:
+                    file_size = local_config_path.stat().st_size
+                    result['skipped_files'].append({
+                        'filename': filename,
+                        'type': 'config',
+                        'reason': 'already_exists'
+                    })
+                    result['configs'].append({
+                        'filename': filename,
+                        'local_path': str(local_config_path),
+                        'size_bytes': file_size,
+                        'skipped': True
+                    })
+                    continue
+
+                # For active instances or new archived files, download
                 if file_existed:
                     result['replaced_files'].append({
                         'filename': filename,
@@ -266,7 +343,8 @@ def fetch_bot_instance_data(bot_name: str, remote_base_path: str) -> Dict:
                         'filename': filename,
                         'local_path': str(local_config_path),
                         'size_bytes': file_size,
-                        'replaced': file_existed
+                        'replaced': file_existed,
+                        'skipped': False
                     })
 
     return result
@@ -402,6 +480,97 @@ def verify_trade_mapping(db_path: Path) -> Dict:
         return {'error': str(e)}
 
 
+def fetch_postgres_tables() -> Dict:
+    """
+    Fetch specified tables from PostgreSQL and save as parquet files.
+
+    Returns:
+        Dict with fetch results
+    """
+    print_step("Fetching PostgreSQL tables...")
+
+    results = {
+        'success': False,
+        'tables_fetched': [],
+        'errors': []
+    }
+
+    # Target directory for postgres data
+    postgres_data_dir = file_manager.server_dir / 'postgres'
+    postgres_data_dir.mkdir(exist_ok=True)
+
+    try:
+        for table_name in POSTGRES_TABLES:
+            print_info(f"Fetching table: {table_name}")
+
+            # Build psql command to export as CSV
+            # We use docker exec to run psql inside the container
+            psql_cmd = (
+                f"docker exec {POSTGRES_DOCKER_CONTAINER} "
+                f"psql -U {POSTGRES_USER} -d {POSTGRES_DB} "
+                f"-c \"\\copy (SELECT * FROM {table_name}) TO STDOUT WITH CSV HEADER\""
+            )
+
+            ssh_cmd = f"ssh {POSTGRES_HOST} '{psql_cmd}'"
+
+            try:
+                result = subprocess.run(
+                    ssh_cmd,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=120
+                )
+
+                if result.returncode != 0:
+                    error_msg = f"Failed to fetch {table_name}: {result.stderr}"
+                    print_error(f"  {error_msg}")
+                    results['errors'].append(error_msg)
+                    continue
+
+                # Parse CSV data with pandas
+                from io import StringIO
+                df = pd.read_csv(StringIO(result.stdout))
+
+                # Save as parquet
+                output_file = postgres_data_dir / f"{table_name}.parquet"
+                df.to_parquet(output_file, index=False)
+
+                file_size = output_file.stat().st_size / (1024 * 1024)  # MB
+                print_success(f"  {table_name}: {len(df):,} rows, {file_size:.2f} MB")
+
+                results['tables_fetched'].append({
+                    'table': table_name,
+                    'rows': len(df),
+                    'columns': len(df.columns),
+                    'file': str(output_file),
+                    'size_mb': round(file_size, 2)
+                })
+
+            except subprocess.TimeoutExpired:
+                error_msg = f"Timeout fetching {table_name}"
+                print_error(f"  {error_msg}")
+                results['errors'].append(error_msg)
+            except Exception as e:
+                error_msg = f"Error processing {table_name}: {str(e)}"
+                print_error(f"  {error_msg}")
+                results['errors'].append(error_msg)
+
+        results['success'] = len(results['tables_fetched']) > 0
+
+        if results['success']:
+            print_success(f"PostgreSQL fetch complete: {len(results['tables_fetched'])} table(s)")
+        else:
+            print_warning("No PostgreSQL tables were fetched successfully")
+
+    except Exception as e:
+        error_msg = f"PostgreSQL fetch failed: {str(e)}"
+        print_error(error_msg)
+        results['errors'].append(error_msg)
+
+    return results
+
+
 def main():
     """Main workflow."""
     start_time = datetime.now()
@@ -451,18 +620,30 @@ def main():
 
     print_success(f"Fetch completed for {len(results)} bot(s)")
 
-    # Database corruption check
-    print_step("Checking database integrity...")
+    # Fetch PostgreSQL tables
+    postgres_results = fetch_postgres_tables()
+
+    # Database corruption check for archived/skipped databases only
+    # Active databases were already checked immediately after download
+    print_step("Checking integrity of archived databases...")
     corruption_results = []
 
     for result in results:
+        is_archived = result['source_type'] == 'archived'
+
         for db in result['databases']:
             db_path = Path(db['local_path'])
+
+            # Skip if this was already checked during download (active instances)
+            if not is_archived and not db.get('skipped', False):
+                continue
+
             is_corrupt, recovery_success, details = check_database_corruption(db_path)
 
             corruption_results.append({
                 'database': db['filename'],
                 'bot_name': result['bot_name'],
+                'source_type': result['source_type'],
                 'corrupt': is_corrupt,
                 'recovered': recovery_success,
                 'details': details
@@ -500,6 +681,7 @@ def main():
     total_databases = sum(len(r['databases']) for r in results)
     total_configs = sum(len(r['configs']) for r in results)
     total_replaced = sum(len(r['replaced_files']) for r in results)
+    total_skipped = sum(len(r['skipped_files']) for r in results)
     total_corrupted = sum(1 for cr in corruption_results if cr['corrupt'])
     total_recovered = sum(1 for cr in corruption_results if cr['recovered'])
 
@@ -521,6 +703,7 @@ def main():
         'total_databases': total_databases,
         'total_configs': total_configs,
         'total_replaced_files': total_replaced,
+        'total_skipped_files': total_skipped,
         'corruption_summary': {
             'databases_checked': len(corruption_results),
             'databases_corrupted': total_corrupted,
@@ -531,9 +714,15 @@ def main():
             'total_mapped': total_mapped_all,
             'overall_coverage': round(overall_coverage, 2)
         },
+        'postgres_summary': {
+            'success': postgres_results['success'],
+            'tables_fetched': len(postgres_results['tables_fetched']),
+            'errors': len(postgres_results['errors'])
+        },
         'instances': results,
         'corruption_details': corruption_results,
-        'mapping_details': mapping_results
+        'mapping_details': mapping_results,
+        'postgres_details': postgres_results
     }
 
     with open(log_file, 'w') as f:
@@ -549,9 +738,13 @@ def main():
     print(f"Total Databases: {total_databases}")
     print(f"Total Configs: {total_configs}")
     print(f"Files Replaced: {total_replaced}")
+    print(f"Files Skipped (archived): {total_skipped}")
     print(f"Databases Corrupted: {total_corrupted}")
     print(f"Databases Recovered: {total_recovered}")
     print(f"Overall Mapping Coverage: {overall_coverage:.1f}%")
+    print(f"PostgreSQL Tables Fetched: {len(postgres_results['tables_fetched'])}")
+    if postgres_results['errors']:
+        print(f"PostgreSQL Errors: {len(postgres_results['errors'])}")
     print(f"\nLog saved to: {log_file}\n")
 
     return 0
