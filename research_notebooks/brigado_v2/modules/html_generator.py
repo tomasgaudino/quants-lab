@@ -801,8 +801,7 @@ def generate_index_html(output_dir: Path, metadata: dict = None) -> Path:
         'consolidation': output_dir / 'consolidation_report.html',
         'market_analysis': output_dir / 'market_analysis_report.html',
         'evolutive': output_dir / 'evolutive_report.html',
-        'portfolio_status': output_dir / 'portfolio_status_report.html',
-        'pnl': output_dir / 'pnl_report.html',
+        'portfolio_evolution': output_dir / 'portfolio_evolution.html',
     }
 
     available_reports = {name: path for name, path in reports.items() if path.exists()}
@@ -1148,7 +1147,37 @@ def generate_index_html(output_dir: Path, metadata: dict = None) -> Path:
             </a>
 """
 
-        # Portfolio Status Report
+        # Portfolio Evolution Report
+        if 'portfolio_evolution' in available_reports:
+            info = report_info['portfolio_evolution']
+            html_content += f"""
+            <a href="{info['path']}" class="report-card">
+                <div class="report-header">
+                    <div class="icon">💰</div>
+                    <h2>Portfolio Evolution</h2>
+                    <p>NAV & PnL reconciliation</p>
+                </div>
+                <div class="report-body">
+                    <div class="report-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Last Updated</span>
+                            <span class="meta-value">{info['modified'].strftime('%Y-%m-%d %H:%M')}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Size</span>
+                            <span class="meta-value">{info['size_kb']:.1f} KB</span>
+                        </div>
+                    </div>
+                    <div class="report-description">
+                        Portfolio reconciliation with initial state tracking, event sourcing through trades,
+                        and delta analysis. Shows NAV evolution, WAC calculations, and realized/unrealized PnL.
+                    </div>
+                    <div class="view-button">View Report →</div>
+                </div>
+            </a>
+"""
+
+        # Portfolio Status Report (deprecated, removed)
         if 'portfolio_status' in available_reports:
             info = report_info['portfolio_status']
             html_content += f"""
