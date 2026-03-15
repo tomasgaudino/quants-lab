@@ -108,7 +108,9 @@ def run_ssh_command(command: str) -> tuple:
     Returns:
         tuple: (return_code, stdout, stderr)
     """
-    full_command = f"ssh {SSH_HOST} '{command}'"
+    # High-latency connection options
+    ssh_opts = "-o ServerAliveInterval=60 -o ConnectTimeout=30 -o Compression=yes"
+    full_command = f"ssh {ssh_opts} {SSH_HOST} '{command}'"
 
     try:
         result = subprocess.run(
@@ -116,11 +118,11 @@ def run_ssh_command(command: str) -> tuple:
             shell=True,
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=60  # Increased timeout for high-latency
         )
         return result.returncode, result.stdout, result.stderr
     except subprocess.TimeoutExpired:
-        return -1, "", "Command timed out"
+        return -1, "", "Command timed out (exceeded 60s)"
     except Exception as e:
         return -1, "", str(e)
 
@@ -145,15 +147,45 @@ def list_remote_directories(remote_path: str) -> List[str]:
 
 def scp_download(remote_path: str, local_path: Path, recursive: bool = False) -> bool:
     """
-    Download file or directory from remote server using scp.
+    Download file or directory from remote server using rsync.
+
+    rsync is superior to scp for high-latency connections because:
+    - Delta sync: Only transfers changed portions
+    - Resume capability: Can continue after interruptions
+    - Built-in compression: Reduces transfer time
+    - Progress monitoring: Shows transfer status
+    - Bandwidth efficiency: Better protocol for long distances
 
     Returns:
         bool: True if successful, False otherwise
     """
     local_path.parent.mkdir(parents=True, exist_ok=True)
 
-    recursive_flag = "-r" if recursive else ""
-    command = f"scp {recursive_flag} {SSH_HOST}:{remote_path} {local_path}"
+    # rsync options:
+    # -a: archive mode (preserves permissions, timestamps, etc.)
+    # -v: verbose (for debugging)
+    # -z: compress during transfer
+    # --timeout=300: timeout for I/O operations (5 minutes)
+    # --contimeout=30: timeout for connection establishment
+    # --partial: keep partially transferred files (enables resume)
+    # --inplace: update files in-place (faster for large files)
+    #
+    # Note: SSH options (ServerAliveInterval, Compression, ControlMaster, etc.)
+    # are configured in ~/.ssh/config for the brigado host
+
+    if recursive:
+        # For directories
+        rsync_opts = "-avz --timeout=300 --contimeout=30 --partial --inplace"
+        # Ensure trailing slash on source for correct behavior
+        remote_source = f"{SSH_HOST}:{remote_path}/"
+        target = local_path
+    else:
+        # For single files
+        rsync_opts = "-avz --timeout=300 --contimeout=30 --partial --inplace"
+        remote_source = f"{SSH_HOST}:{remote_path}"
+        target = local_path
+
+    command = f"rsync {rsync_opts} {remote_source} {target}"
 
     try:
         result = subprocess.run(
@@ -161,11 +193,20 @@ def scp_download(remote_path: str, local_path: Path, recursive: bool = False) ->
             shell=True,
             capture_output=True,
             text=True,
-            timeout=300  # 5 minutes for large files
+            timeout=600  # 10 minutes total timeout
         )
 
+        if result.returncode != 0:
+            # Log the actual error for debugging
+            stderr = result.stderr.strip()
+            print_error(f"rsync failed for {remote_path}: {stderr}")
+
         return result.returncode == 0
-    except Exception:
+    except subprocess.TimeoutExpired:
+        print_error(f"rsync timeout for {remote_path} (exceeded 10 minutes)")
+        return False
+    except Exception as e:
+        print_error(f"rsync exception for {remote_path}: {str(e)}")
         return False
 
 

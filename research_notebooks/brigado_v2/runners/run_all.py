@@ -64,7 +64,7 @@ def main():
 
     # Define runners in order
     runners = [
-        # (script_dir / "00_fetch_live_databases.py", "Fetch Live Databases"),
+        (script_dir / "00_fetch_live_databases.py", "Fetch Live Databases"),
         (script_dir / "00b_consolidate_postgres_data.py", "PostgreSQL Data Consolidation"),
         (script_dir / "01_consolidate_data.py", "Data Consolidation"),
         (script_dir / "02_market_analysis.py", "Market Analysis"),
