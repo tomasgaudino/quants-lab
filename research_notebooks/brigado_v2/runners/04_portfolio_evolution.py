@@ -230,9 +230,14 @@ def calculate_nav_from_snapshots(token_states: pd.DataFrame, trades: pd.DataFram
                 symbol_trades.sort_values('timestamp')
                 .groupby('date')['price']
                 .last()
-                .to_dict()
             )
-            daily_prices[symbol] = prices
+            # Forward-fill prices for days without trades
+            all_dates = sorted(daily_snapshots['date'].unique())
+            price_series = pd.Series(index=pd.DatetimeIndex([pd.Timestamp(d) for d in all_dates]))
+            for date, price in prices.items():
+                price_series[pd.Timestamp(date)] = price
+            price_series = price_series.ffill()  # Forward fill missing prices
+            daily_prices[symbol] = {d.date(): price_series[d] for d in price_series.index if pd.notna(price_series[d])}
 
     # Calculate NAV for each day
     nav_records = []
