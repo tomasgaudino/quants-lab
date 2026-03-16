@@ -636,9 +636,10 @@ def main():
         output_path.write_text(html_content)
         print_metric("Report saved", str(output_path))
 
-        # Update index
-        from research_notebooks.brigado_v2.modules.html_generator import generate_index_html
-        generate_index_html(reports_dir)
+        # Copy as index.html (executive dashboard IS the main entry point)
+        index_path = reports_dir / "index.html"
+        index_path.write_text(html_content)
+        print_metric("Index updated", str(index_path))
 
         # Summary
         duration = (datetime.now() - start_time).total_seconds()
